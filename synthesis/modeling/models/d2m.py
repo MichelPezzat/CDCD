@@ -56,6 +56,7 @@ class D2M(nn.Module):
         content_codec_config,
         condition_codec_config,
         diffusion_config,
+        loss_config,
         max_vq_len=None,
     ):
         super().__init__()
@@ -447,5 +448,5 @@ class D2M(nn.Module):
         **kwargs
     ):
         input = self.prepare_input(batch)
-        output = self.transformer(input, **kwargs)
+        output = self.tranformer(input, **kwargs)
         return output

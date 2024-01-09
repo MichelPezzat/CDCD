@@ -716,3 +716,53 @@ class UnCondition2ImageTransformer(nn.Module):
         logits = self.to_logits(emb) # B x (Ld+Lt) x n
         out = rearrange(logits, 'b l c -> b c l')
         return out
+
+
+
+class UniformRate():
+    def __init__(self, cfg, device):
+        self.S = S = cfg.data.S
+        self.rate_const = cfg.model.rate_const
+        self.device = device
+
+        rate = self.rate_const * np.ones((S,S))
+        rate = rate - np.diag(np.diag(rate))
+        rate = rate - np.diag(np.sum(rate, axis=1))
+        eigvals, eigvecs = np.linalg.eigh(rate)
+
+        self.rate_matrix = torch.from_numpy(rate).float().to(self.device)
+        self.eigvals = torch.from_numpy(eigvals).float().to(self.device)
+        self.eigvecs = torch.from_numpy(eigvecs).float().to(self.device)
+
+    def rate(self, t: TensorType["B"]
+    ) -> TensorType["B", "S", "S"]:
+        B = t.shape[0]
+        S = self.S
+
+        return torch.tile(self.rate_matrix.view(1,S,S), (B, 1, 1))
+
+    def transition(self, t: TensorType["B"]
+    ) -> TensorType["B", "S", "S"]:
+        B = t.shape[0]
+        S = self.S
+        transitions = self.eigvecs.view(1, S, S) @ \
+            torch.diag_embed(torch.exp(self.eigvals.view(1, S) * t.view(B,1))) @\
+            self.eigvecs.T.view(1, S, S)
+
+        if torch.min(transitions) < -1e-6:
+            print(f"[Warning] UniformRate, large negative transition values {torch.min(transitions)}")
+
+        transitions[transitions < 1e-8] = 0.0
+
+        return transitions
+
+class UniformRateSequenceTransformerEMA(
+          ema_config, 
+          text_2_image_transformer_config, 
+          rate_config):
+    def __init__(self, cfg, device, rank=None):
+        instantiate_from_config(ema_config)
+        instantiate_from_config(text_2_image_transformer_config)
+        instantiate_from_config(rate_config)
+
+        self.init_ema()
