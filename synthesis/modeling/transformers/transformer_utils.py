@@ -19,6 +19,25 @@ from inspect import isfunction
 from torch.cuda.amp import autocast
 from torch.utils.checkpoint import checkpoint
 
+
+def transformer_timestep_embedding(timesteps, embedding_dim, max_positions=10000):
+    assert len(timesteps.shape) == 1  # and timesteps.dtype == tf.int32
+    half_dim = embedding_dim // 2
+    # magic number 10000 is from transformers
+    emb = math.log(max_positions) / (half_dim - 1)
+    # emb = math.log(2.) / (half_dim - 1)
+    emb = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -emb)
+    # emb = tf.range(num_embeddings, dtype=jnp.float32)[:, None] * emb[None, :]
+    # emb = tf.cast(timesteps, dtype=jnp.float32)[:, None] * emb[None, :]
+    emb = timesteps.float()[:, None] * emb[None, :]
+    emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
+    if embedding_dim % 2 == 1:  # zero pad
+       emb = F.pad(emb, (0, 1), mode='constant')
+    assert emb.shape == (timesteps.shape[0], embedding_dim)
+    return emb
+
+
+
 class FullAttention(nn.Module):
     def __init__(self,
                  n_embd, # the embed dim
@@ -196,14 +215,14 @@ class Block(nn.Module):
         self.if_upsample = if_upsample
         self.attn_type = attn_type
 
-        if attn_type in ['selfcross', 'selfcondition', 'self']: 
-            if 'adalayernorm' in timestep_type:
-                self.ln1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
-            else:
+        #if attn_type in ['selfcross', 'selfcondition', 'self']: 
+            #if 'adalayernorm' in timestep_type:
+             #   self.ln1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
+            #else:
                 print("timestep_type wrong")
-        else:
-            self.ln1 = nn.LayerNorm(n_embd)
-        
+        #else:
+         #   self.ln1 = nn.LayerNorm(n_embd)
+        self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
         # self.if_selfcross = False
         if attn_type in ['self', 'selfcondition']:
@@ -214,11 +233,11 @@ class Block(nn.Module):
                 attn_pdrop=attn_pdrop,
                 resid_pdrop=resid_pdrop,
             )
-            if attn_type == 'selfcondition':
-                if 'adalayernorm' in class_type:
-                    self.ln2 = AdaLayerNorm(n_embd, class_number, class_type)
-                else:
-                    self.ln2 = AdaInsNorm(n_embd, class_number, class_type)
+          #  if attn_type == 'selfcondition':
+           #     if 'adalayernorm' in class_type:
+            #        self.ln2 = AdaLayerNorm(n_embd, class_number, class_type)
+             #   else:
+              #      self.ln2 = AdaInsNorm(n_embd, class_number, class_type)
         elif attn_type == 'selfcross':
             self.attn1 = FullAttention(
                     n_embd=n_embd,
@@ -236,10 +255,10 @@ class Block(nn.Module):
                     attn_pdrop=attn_pdrop,
                     resid_pdrop=resid_pdrop,
                     )
-            if 'adalayernorm' in timestep_type:
-                self.ln1_1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
-            else:
-                print("timestep_type wrong")
+            #if 'adalayernorm' in timestep_type:
+             #   self.ln1_1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
+            #else:
+             #   print("timestep_type wrong")
         else:
             print("attn_type error")
         assert activate in ['GELU', 'GELU2']
@@ -253,21 +272,27 @@ class Block(nn.Module):
                 nn.Linear(mlp_hidden_times * n_embd, n_embd),
                 nn.Dropout(resid_pdrop),
             )
+        self.film_from_temb = nn.Linear(temb_dim, 2*n_emd)
 
-    def forward(self, x, encoder_output, timestep, mask=None):    
+    def forward(self, x, encoder_output, temb, mask=None):
+
+        B, L, K = x.shape
+        film_params = self.film_from_temb(temb)
+  
         if self.attn_type == "selfcross":
-            a, att = self.attn1(self.ln1(x, timestep), encoder_output, mask=mask)
-            x = x + a
-            a, att = self.attn2(self.ln1_1(x, timestep), encoder_output, mask=mask)
-            x = x + a
+            a, att = self.attn1(x, encoder_output, mask=mask)
+            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, 0:K]
+            a, att = self.attn2(x, encoder_output, mask=mask)
+            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, 0:K]
         elif self.attn_type == "selfcondition":
-            a, att = self.attn(self.ln1(x, timestep), encoder_output, mask=mask)
-            x = x + a
-            x = x + self.mlp(self.ln2(x, encoder_output.long()))   # only one really use encoder_output
+            a, att = self.attn(x, encoder_output, mask=mask)
+            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, 0:K]
+            x = x + self.mlp(x, encoder_output.long())   # only one really use encoder_output
+            x = film_params[:, None, 0:K] * self.ln2(x) + film_params[:, None, 0:K]
             return x, att
         else:  # 'self'
-            a, att = self.attn(self.ln1(x, timestep), encoder_output, mask=mask)
-            x = x + a 
+            a, att = self.attn(x), encoder_output, mask=mask)
+            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, 0:K]
 
         x = x + self.mlp(self.ln2(x))
 
@@ -305,6 +330,8 @@ class Text2ImageTransformer(nn.Module):
         condition_dim=512,
         diffusion_step=1000,
         timestep_type='adalayernorm',
+        temb_dim=128,
+        time_scale_factor=1000,
         content_emb_config=None,
         mlp_type='fc',
         checkpoint=False,
@@ -313,6 +340,11 @@ class Text2ImageTransformer(nn.Module):
 
         self.use_checkpoint = checkpoint
         self.content_emb = instantiate_from_config(content_emb_config)
+
+
+        self.temb_dim = temb_dim
+        self.time_scale_factor = time_scale_factor
+
 
         # transformer
         assert attn_type == 'selfcross'
@@ -350,6 +382,14 @@ class Text2ImageTransformer(nn.Module):
         self.condition_seq_len = condition_seq_len
         self.content_seq_len = content_seq_len
 
+
+        self.temb_net = nn.Sequential(
+            nn.Linear(temb_dim, mlp_hidden_times*n_embd),
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_times*n_embd, 4*temb_dim)
+        )
+        
+        
         self.apply(self._init_weights)
 
     def _init_weights(self, module):
@@ -425,7 +465,14 @@ class Text2ImageTransformer(nn.Module):
             t):
         cont_emb = self.content_emb(input)
         emb = cont_emb
+        
 
+        temb = self.temb_net(
+            transformer_timestep_embedding(
+                t*self.time_scale_factor, self.temb_dim
+            )
+        )
+        
         for block_idx in range(len(self.blocks)):   
             if self.use_checkpoint == False:
                 emb, att_weight = self.blocks[block_idx](emb, cond_emb, t.cuda()) # B x (Ld+Lt) x D, B x (Ld+Lt) x (Ld+Lt)
