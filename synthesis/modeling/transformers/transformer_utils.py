@@ -893,14 +893,13 @@ class EMA():
             self.move_shadow_params_to_model_params()
 
 
-class UniformRateSequenceTransformerEMA():
+class UniformRateSequenceTransformer():
     def __init__(self, ema_config,
                        text_2_image_transformer_config,
                        uniform_rate_config):
-        self.ema = instantiate_from_config(ema_config)
         self.transformer = instantiate_from_config(text_2_image_transformer_config)
         self.uniform_rate = instantiate_from_config(uniform_rate_config)
-        self.ema.init_ema()
+
         
 
        
