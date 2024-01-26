@@ -18,35 +18,41 @@ model:
         context_length: 6 # the smaple length in seconds, 2 or 6
 
     diffusion_config:      
-      target: synthesis.modeling.transformers.diffusion_d2m.DiffusionTransformer
+      target: synthesis.modeling.transformers.tauLDR_losses.ConditionalAux
       params:
-        diffusion_step: 80
-        alpha_init_type: 'alpha1'       # init_type = fix or cos or linear 
-        auxiliary_loss_weight: 5.0e-4
-        adaptive_auxiliary_loss: True
-        mask_weight: [1, 1]    # the loss weight on mask region and non-mask region
-        vqvae_load_path: './synthesis/modeling/models/vqvae.pt'
-        hop_level: 'top' 
+        ratio_eps: 80
+        nll_weigth: 'alpha1'       # init_type = fix or cos or linear 
+        min_time: 5.0e-4
+        one_forward_pass: True
+        condition: [1, 1]    # the loss weight on mask region and non-mask region
+        #vqvae_load_path: './synthesis/modeling/models/vqvae.pt'
+        #hop_level: 'top' 
 
         content_codec_config:
           target: synthesis.modeling.codecs.music_codec.jukebox_vqvae.VQVAE
 
         transformer_config:
-          target: synthesis.modeling.transformers.transformer_utils.Text2ImageTransformer
-          params:
-            attn_type: 'selfcross'
-            n_layer: 19
-            condition_seq_len: 77    ###### 77 for clip and 256 for dalle
-            content_seq_len: 1033  # 6s * 22050 / 128
-            content_spatial_size: [1, 1033]
-            n_embd: 1024 # the dim of embedding dims
-            condition_dim: 1024
-            n_head: 16 
-            attn_pdrop: 0.0
-            resid_pdrop: 0.0
-            block_activate: GELU2
-            timestep_type: 'adalayernorm'    # adainsnorm or adalayernorm and abs
-            mlp_hidden_times: 4
+          target: synthesis.modeling.transformers.transformer_utils.UniformRateSequenceTransformerEMA
+          text_2_image_transformer_config:
+            target:synthesis.modeling.transformers.transformer_utils.Text2ImageTransformer 
+            params:
+              attn_type: 'selfcross'
+              n_layer: 19
+              condition_seq_len: 77    ###### 77 for clip and 256 for dalle
+              content_seq_len: 1033  # 6s * 22050 / 128
+              content_spatial_size: [1, 1033]
+              n_embd: 1024 # the dim of embedding dims
+              condition_dim: 1024
+              n_head: 16 
+              attn_pdrop: 0.0
+              resid_pdrop: 0.0
+              block_activate: GELU2
+              timestep_type: 'adalayernorm'    # adainsnorm or adalayernorm and abs
+              mlp_hidden_times: 4
+          target: synthesis.modeling.transformers.transformer_utils.UniformRate
+            params:
+              num_embed: 2048
+              rate_const: 0.03
         condition_emb_config:
           target: synthesis.modeling.embeddings.genre_embedding.GenreEmbedding
           params:
