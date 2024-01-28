@@ -287,9 +287,9 @@ class ConditionalAux():
             self.condition_emb = instantiate_from_config(condition_emb_config)           
 
         transformer_config['params']['content_emb_config'] = content_emb_config
-        self.ema_uniformrate_transformer = instantiate_from_config(transformer_config)       
+        self.transformer = instantiate_from_config(transformer_config)       
 
-        self.num_classes = self.ema_uniformrate_transformer.transformer.content_emb.num_embed
+        self.num_classes = self.transformer.content_emb.num_embed
         self.ratio_eps = ratio_eps
         self.nll_weight = nll_weight
         self.min_time = min_time
@@ -301,20 +301,20 @@ class ConditionalAux():
 
     def calc_loss(self, input):
      
-        sample_music = input['content_token'].type_as(input['content_token'])
+        minibatch = input['content_token'].type_as(input['content_token'])
           
-        
-        if len(sample_music.shape) == 4:
-            B, C, H, W = sample_music.shape
-            sample_music = minibatch.view(B, C*H*W)
-        B, D = minibatch.shape
+        S = self.num_classes
+        if len(minibatch.shape) == 4:
+            B, C, H, W = minibatch.shape
+            minibatch = minibatch.view(B, C*H*W)
+        B, d = minibatch.shape
         device = minibatch.device
 
         ts = torch.rand((B,), device=device) * (1.0 - self.min_time) + self.min_time
 
-        qt0 = self.ema_uniformrate_transformer.uniform_rate.transition(ts) # (B, S, S)
+        qt0 = self.transformer.transition(ts, device) # (B, S, S)
 
-        rate = self.ema_uniformrate_transformer.uniform_rate.rate(ts) # (B, S, S)
+        rate = self.transformer.rate(ts, device) # (B, S, S)
 
         #conditioner = minibatch[:, 0:self.condition_dim]
         #data = minibatch[:, self.condition_dim:]
@@ -330,7 +330,6 @@ class ConditionalAux():
             else:
                 cond_emb = input['condition_embed_token'].float()
 
-        d = minibatch.shape[1]
 
 
         # --------------- Sampling x_t, x_tilde --------------------
@@ -381,14 +380,12 @@ class ConditionalAux():
 
         if self.one_forward_pass:
             #model_input = torch.concat((conditioner, x_tilde), dim=1)
-            x_logits_full = self.ema_uniformrate_transformer.transformer(sample_music,cond_emb ,ts) # (B, D, S)
-            x_logits = x_logits_full[:, self.condition_dim:, :] # (B, d, S)
+            x_logits = self.transformer(minibatch,cond_emb ,ts) # (B, D, S)
             p0t_reg = F.softmax(x_logits, dim=2) # (B, d, S)
             reg_x = x_tilde
         else:
             #model_input = torch.concat((conditioner, x_t), dim=1)
-            x_logits_full = self.ema_uniformrate_transformer.transformer(sample_music, cond_emb,ts) # (B, D, S)
-            x_logits = x_logits_full[:, self.condition_dim:, :] # (B, d, S)
+            x_logits = self.transformer(minibatch, cond_emb,ts) # (B, D, S)
             p0t_reg = F.softmax(x_logits, dim=2) # (B, d, S)
             reg_x = x_t
 
@@ -431,8 +428,7 @@ class ConditionalAux():
             p0t_sig = p0t_reg
         else:
             #model_input = torch.concat((conditioner, x_tilde), dim=1)
-            x_logits_full = self.ema_uniformrate_transformer.transformer(sample_music, cond_emb, ts) # (B, d, S)
-            x_logits = x_logits_full[:, self.condition_dim:, :]
+            x_logits = self.transformer(minibatch, cond_emb, ts) # (B, d, S)
             p0t_sig = F.softmax(x_logits, dim=2) # (B, d, S)
 
         # When we have B,D,S,S first S is x_0, second is x
