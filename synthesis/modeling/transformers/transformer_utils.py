@@ -313,7 +313,7 @@ class Conv_MLP(nn.Module):
         x = rearrange(x, 'b c h w -> b (h w) c')
         return self.dropout(x)
 
-class Text2ImageTransformer(nn.Module):
+class UniformRateText2ImageTransformer(nn.Module):
     def __init__(
         self,
         condition_seq_len=77,
@@ -334,7 +334,9 @@ class Text2ImageTransformer(nn.Module):
         time_scale_factor=1000,
         content_emb_config=None,
         mlp_type='fc',
+        rate_const=0.0,
         checkpoint=False,
+        
     ):
         super().__init__()
 
@@ -389,6 +391,18 @@ class Text2ImageTransformer(nn.Module):
             nn.Linear(mlp_hidden_times*n_embd, 4*temb_dim)
         )
         
+        self.S = S = self.content_emb.num_embed
+        self.rate_const = rate_const
+        self.device = device
+
+        rate = self.rate_const * np.ones((S,S))
+        rate = rate - np.diag(np.diag(rate))
+        rate = rate - np.diag(np.sum(rate, axis=1))
+        eigvals, eigvecs = np.linalg.eigh(rate)
+
+        self.rate_matrix = torch.from_numpy(rate).float()
+        self.eigvals = torch.from_numpy(eigvals).float()
+        self.eigvecs = torch.from_numpy(eigvecs).float()
         
         self.apply(self._init_weights)
 
@@ -465,7 +479,7 @@ class Text2ImageTransformer(nn.Module):
             t):
 
 
-        input = nn.functional.one_hot(input, num_classes=self.content_emb.num_embed)
+        #input = nn.functional.one_hot(input, num_classes=self.content_emb.num_embed)
         cont_emb = self.content_emb(input)
         emb = cont_emb
         
@@ -484,6 +498,30 @@ class Text2ImageTransformer(nn.Module):
         logits = self.to_logits(emb) # B x (Ld+Lt) x n
         out = rearrange(logits, 'b l c -> b c l')
         return out
+    
+    def rate(self, t: TensorType["B"],
+                 device) -> TensorType["B", "S", "S"]:
+        B = t.shape[0]
+        S = self.S
+        rate_matrix = self.rate_matrix.to(device)
+        return torch.tile(rate_matrix.view(1,S,S), (B, 1, 1))
+
+    def transition(self, t: TensorType["B"],
+             device) -> TensorType["B", "S", "S"]:
+        B = t.shape[0]
+        S = self.S
+        eigen_vecs = self.eigen_vecs.to(device)
+        eigen_vals = self.eigen_vals.to(device)
+        transitions = eigvecs.view(1, S, S) @ \
+            torch.diag_embed(torch.exp(eigvals.view(1, S) * t.view(B,1))) @\
+            eigvecs.T.view(1, S, S)
+
+        if torch.min(transitions) < -1e-6:
+            print(f"[Warning] UniformRate, large negative transition values {torch.min(transitions)}")
+
+        transitions[transitions < 1e-8] = 0.0
+
+        return transitions
 
 class Condition2ImageTransformer(nn.Module):
     def __init__(
@@ -768,137 +806,6 @@ class UnCondition2ImageTransformer(nn.Module):
         return out
 
 
-
-class UniformRate():
-    def __init__(self, num_emb, rate_cont, device):
-        self.S = S = cfg.data.S
-        self.rate_const = cfg.model.rate_const
-        self.device = device
-
-        rate = self.rate_const * np.ones((S,S))
-        rate = rate - np.diag(np.diag(rate))
-        rate = rate - np.diag(np.sum(rate, axis=1))
-        eigvals, eigvecs = np.linalg.eigh(rate)
-
-        self.rate_matrix = torch.from_numpy(rate).float().to(self.device)
-        self.eigvals = torch.from_numpy(eigvals).float().to(self.device)
-        self.eigvecs = torch.from_numpy(eigvecs).float().to(self.device)
-
-    def rate(self, t: TensorType["B"]
-    ) -> TensorType["B", "S", "S"]:
-        B = t.shape[0]
-        S = self.S
-
-        return torch.tile(self.rate_matrix.view(1,S,S), (B, 1, 1))
-
-    def transition(self, t: TensorType["B"]
-    ) -> TensorType["B", "S", "S"]:
-        B = t.shape[0]
-        S = self.S
-        transitions = self.eigvecs.view(1, S, S) @ \
-            torch.diag_embed(torch.exp(self.eigvals.view(1, S) * t.view(B,1))) @\
-            self.eigvecs.T.view(1, S, S)
-
-        if torch.min(transitions) < -1e-6:
-            print(f"[Warning] UniformRate, large negative transition values {torch.min(transitions)}")
-
-        transitions[transitions < 1e-8] = 0.0
-
-        return transitions
-
-class EMA():
-    def __init__(self, ema_decay):
-        self.decay = ema_decay
-        if self.decay < 0.0 or self.decay > 1.0:
-            raise ValueError('Decay must be between 0 and 1')
-        self.shadow_params = []
-        self.collected_params = []
-        self.num_updates = 0
-
-    def init_ema(self):
-        self.shadow_params = [p.clone().detach()
-                            for p in self.parameters() if p.requires_grad]
-
-    def update_ema(self):
-
-        if len(self.shadow_params) == 0:
-            raise ValueError("Shadow params not initialized before first ema update!")
-
-        decay = self.decay
-        self.num_updates += 1
-        decay = min(decay, (1 + self.num_updates) / (10 + self.num_updates))
-        one_minus_decay = 1.0 - decay
-        with torch.no_grad():
-            parameters = [p for p in self.parameters() if p.requires_grad]
-            for s_param, param in zip(self.shadow_params, parameters):
-                s_param.sub_(one_minus_decay * (s_param - param))
-
-    def state_dict(self):
-        sd = nn.Module.state_dict(self)
-        sd['ema_decay'] = self.decay
-        sd['ema_num_updates'] = self.num_updates
-        sd['ema_shadow_params'] = self.shadow_params
-
-        return sd
-
-    def move_shadow_params_to_model_params(self):
-        parameters = [p for p in self.parameters() if p.requires_grad]
-        for s_param, param in zip(self.shadow_params, parameters):
-            if param.requires_grad:
-                param.data.copy_(s_param.data)
-
-    def move_model_params_to_collected_params(self):
-        self.collected_params = [param.clone() for param in self.parameters()]
-
-    def move_collected_params_to_model_params(self):
-        for c_param, param in zip(self.collected_params, self.parameters()):
-            param.data.copy_(c_param.data)
-
-    def load_state_dict(self, state_dict):
-        missing_keys, unexpected_keys = nn.Module.load_state_dict(self, state_dict, strict=False)
-
-        # print("state dict keys")
-        # for key in state_dict.keys():
-        #     print(key)
-
-        if len(missing_keys) > 0:
-            print("Missing keys: ", missing_keys)
-            raise ValueError
-        if not (len(unexpected_keys) == 3 and \
-            'ema_decay' in unexpected_keys and \
-            'ema_num_updates' in unexpected_keys and \
-            'ema_shadow_params' in unexpected_keys):
-            print("Unexpected keys: ", unexpected_keys)
-            raise ValueError
-
-        self.decay = state_dict['ema_decay']
-        self.num_updates = state_dict['ema_num_updates']
-        self.shadow_params = state_dict['ema_shadow_params']
-
-    def train(self, mode=True):
-        if self.training == mode:
-            print("Dont call model.train() with the same mode twice! Otherwise EMA parameters may overwrite original parameters")
-            print("Current model training mode: ", self.training)
-            print("Requested training mode: ", mode)
-            raise ValueError
-
-        nn.Module.train(self, mode)
-        if mode:
-            if len(self.collected_params) > 0:
-                self.move_collected_params_to_model_params()
-            else:
-                print("model.train(True) called but no ema collected parameters!")
-        else:
-            self.move_model_params_to_collected_params()
-            self.move_shadow_params_to_model_params()
-
-
-class UniformRateSequenceTransformer():
-    def __init__(self, ema_config,
-                       text_2_image_transformer_config,
-                       uniform_rate_config):
-        self.transformer = instantiate_from_config(text_2_image_transformer_config)
-        self.uniform_rate = instantiate_from_config(uniform_rate_config)
 
         
 
