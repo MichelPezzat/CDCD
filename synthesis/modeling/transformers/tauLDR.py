@@ -8,7 +8,6 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 
-@losses_utils.register_loss
 class GenericAux():
     def __init__(self, cfg):
         self.cfg = cfg
@@ -264,8 +263,7 @@ class GenericAux():
 
 
 
-@losses_utils.register_loss
-class ConditionalAux():
+class ConditionalAux(nn.Module):
     def __init__(self, 
         *,
         content_emb_config=None,
@@ -275,7 +273,7 @@ class ConditionalAux():
         nll_weight=0,
         min_time=0.01,
         one_forward_pass=False,
-        condition=32,
+        condition_dim=32,
         ):
         
         super().__init__()
@@ -290,11 +288,13 @@ class ConditionalAux():
         self.transformer = instantiate_from_config(transformer_config)       
 
         self.num_classes = self.transformer.content_emb.num_embed
+        self.shape = transformer_config['params']['content_seq_len']
         self.ratio_eps = ratio_eps
         self.nll_weight = nll_weight
         self.min_time = min_time
         self.one_forward_pass = one_forward_pass
         self.condition_dim = condition_dim
+        self.lin = nn.Linear(256, 1024)
         self.cross_ent = nn.CrossEntropyLoss()
 
 
@@ -307,7 +307,7 @@ class ConditionalAux():
         if len(minibatch.shape) == 4:
             B, C, H, W = minibatch.shape
             minibatch = minibatch.view(B, C*H*W)
-        B, d = minibatch.shape
+        B, D = minibatch.shape
         device = minibatch.device
 
         ts = torch.rand((B,), device=device) * (1.0 - self.min_time) + self.min_time
@@ -316,8 +316,10 @@ class ConditionalAux():
 
         rate = self.transformer.rate(ts, device) # (B, S, S)
 
-        #conditioner = minibatch[:, 0:self.condition_dim]
-        #data = minibatch[:, self.condition_dim:]
+        conditioner = minibatch[:, 0:self.condition_dim]
+        data = minibatch[:, self.condition_dim:]
+        d = data.shape[1]
+
         if self.condition_emb is not None:
             with autocast(enabled=False):
                 with torch.no_grad():
@@ -329,7 +331,7 @@ class ConditionalAux():
                 cond_emb = None
             else:
                 cond_emb = input['condition_embed_token'].float()
-
+        cond_emb = self.lin(cond_emb)
 
 
         # --------------- Sampling x_t, x_tilde --------------------
@@ -379,14 +381,14 @@ class ConditionalAux():
 
 
         if self.one_forward_pass:
-            #model_input = torch.concat((conditioner, x_tilde), dim=1)
-            x_logits = self.transformer(minibatch,cond_emb ,ts) # (B, D, S)
-            p0t_reg = F.softmax(x_logits, dim=2) # (B, d, S)
+            model_input = torch.concat((conditioner, x_tilde), dim=1)
+            x_logits = self.transformer(model_input,cond_emb ,ts) # (B, D, S)
+            p0t_reg = F.softmax(x_logits[:, self.condition_dim:, :], dim=2) # (B, d, S)
             reg_x = x_tilde
         else:
-            #model_input = torch.concat((conditioner, x_t), dim=1)
-            x_logits = self.transformer(minibatch, cond_emb,ts) # (B, D, S)
-            p0t_reg = F.softmax(x_logits, dim=2) # (B, d, S)
+            model_input = torch.concat((conditioner, x_t), dim=1)
+            x_logits = self.transformer(model_input, cond_emb,ts) # (B, D, S)
+            p0t_reg = F.softmax(x_logits[:, self.condition_dim:, :], dim=2) # (B, d, S)
             reg_x = x_t
 
         # For (B, d, S, S) first S is x_0 second S is x'
@@ -427,9 +429,9 @@ class ConditionalAux():
         if self.one_forward_pass:
             p0t_sig = p0t_reg
         else:
-            #model_input = torch.concat((conditioner, x_tilde), dim=1)
-            x_logits = self.transformer(minibatch, cond_emb, ts) # (B, d, S)
-            p0t_sig = F.softmax(x_logits, dim=2) # (B, d, S)
+            model_input = torch.concat((conditioner, x_tilde), dim=1)
+            x_logits = self.transformer(model_input, cond_emb, ts) # (B, d, S)
+            p0t_sig = F.softmax(x_logits[:, self.condition_dim:, :], dim=2) # (B, d, S)
 
         # When we have B,D,S,S first S is x_0, second is x
 
@@ -540,3 +542,160 @@ class ConditionalAux():
         nll = self.cross_ent(perm_x_logits, data.long())
 
         return neg_elbo + self.nll_weight * nll
+
+    def sample(
+            self,
+            #condition_motion,
+            #condition_video,
+            condition_genre,
+            condition_mask,
+            condition_embed,
+            content_token = None,
+            num_steps=1,
+            min_t=0.0,
+            eps_ratio=0.0,
+            reject_multiple_jumps=False,
+            initial_dist=None,
+            return_att_weight = False,
+            return_logits = False,
+            content_logits = None,
+            print_log = True,
+            num_intermediates=0,
+            **kwargs):
+        input = {'condition_motion': condition_motion,
+                'condition_video': condition_video,
+                'condition_genre': condition_genre,
+                'content_token': content_token, 
+                'condition_mask': condition_mask,
+                'condition_embed_token': condition_embed,
+                'content_logits': content_logits,
+                }
+
+        #if input['condition_motion'] != None:
+         #   N = input['condition_motion'].shape[0]
+        #else:
+        N = kwargs['batch_size']
+    
+                
+        #device = self.log_at.device
+        device = input['condition_genre'].device
+        start_step = int(self.num_timesteps * filter_ratio)
+
+        # get cont_emb and cond_emb
+        if content_token != None:
+            conditioner = input['content_token'].type_as(input['content_token'])[:, 0:self.condition_dim]
+        else:
+            start_step = 0
+
+        if self.condition_emb is not None:  # do this
+            with torch.no_grad():
+                cond_emb = self.condition_emb(input['condition_genre']) # B x Ld x D   #256*1024
+            cond_emb = cond_emb.float()
+        else: # share condition embeding with content
+            if input.get('condition_embed_token', None) != None:
+                cond_emb = input['condition_embed_token'].float()
+            else:
+                cond_emb = None
+        #cond_motion = input['condition_motion']
+        #cond_video = input['condition_video']
+        # print("Check motion, video and genre condition embedding:", cond_motion.size(), cond_video.size(), cond_emb.size())
+        #cond_emb = torch.cat((cond_motion, cond_video, cond_emb), 2)
+        cond_emb = self.lin(cond_emb)
+
+
+        t = 1.0
+        total_D = self.shape
+        sample_D = total_D - self.condition_dim
+        S = self.num_classes
+
+        if initial_dist == 'gaussian':
+            initial_dist_std  = model.Q_sigma
+        else:
+            initial_dist_std = None
+        #device = model.device
+
+        with torch.no_grad():
+            x = get_initial_samples(N, sample_D, device, S, initial_dist,
+                initial_dist_std)
+
+
+            ts = np.concatenate((np.linspace(1.0, min_t, num_steps), np.array([0])))
+            save_ts = ts[np.linspace(0, len(ts)-2, num_intermediates, dtype=int)]
+
+            x_hist = []
+            x0_hist = []
+
+            counter = 0
+            for idx, t in tqdm(enumerate(ts[0:-1])):
+                h = ts[idx] - ts[idx+1]
+
+                qt0 = self.transfomer.transition(t * torch.ones((N,), device=device)) # (N, S, S)
+                rate = self.transformer.rate(t * torch.ones((N,), device=device)) # (N, S, S)
+
+                model_input = torch.concat((conditioner, x), dim=1)
+                p0t = F.softmax(self.transformer(model_input, cond_emb,t * torch.ones((N,), device=device)), dim=2) # (N, D, S)
+                p0t = p0t[:, self.condition_dim:, :]
+
+
+                x_0max = torch.max(p0t, dim=2)[1]
+                if t in save_ts:
+                    x_hist.append(x.clone().detach().cpu().numpy())
+                    x0_hist.append(x_0max.clone().detach().cpu().numpy())
+
+
+
+                qt0_denom = qt0[
+                    torch.arange(N, device=device).repeat_interleave(sample_D*S),
+                    torch.arange(S, device=device).repeat(N*sample_D),
+                    x.long().flatten().repeat_interleave(S)
+                ].view(N,sample_D,S) + eps_ratio
+
+                # First S is x0 second S is x tilde
+
+                qt0_numer = qt0 # (N, S, S)
+
+                forward_rates = rate[
+                    torch.arange(N, device=device).repeat_interleave(sample_D*S),
+                    torch.arange(S, device=device).repeat(N*sample_D),
+                    x.long().flatten().repeat_interleave(S)
+                ].view(N, sample_D, S)
+
+                inner_sum = (p0t / qt0_denom) @ qt0_numer # (N, D, S)
+
+                reverse_rates = forward_rates * inner_sum # (N, D, S)
+
+                reverse_rates[
+                    torch.arange(N, device=device).repeat_interleave(sample_D),
+                    torch.arange(sample_D, device=device).repeat(N),
+                    x.long().flatten()
+                ] = 0.0
+
+                diffs = torch.arange(S, device=device).view(1,1,S) - x.view(N,sample_D,1)
+                poisson_dist = torch.distributions.poisson.Poisson(reverse_rates * h)
+                jump_nums = poisson_dist.sample()
+
+                if reject_multiple_jumps:
+                    jump_num_sum = torch.sum(jump_nums, dim=2)
+                    jump_num_sum_mask = jump_num_sum <= 1
+                    masked_jump_nums = jump_nums * jump_num_sum_mask.view(N, sample_D, 1)
+                    adj_diffs = masked_jump_nums * diffs
+                else:
+                    adj_diffs = jump_nums * diffs
+
+
+                adj_diffs = jump_nums * diffs
+                overall_jump = torch.sum(adj_diffs, dim=2)
+                xp = x + overall_jump
+                x_new = torch.clamp(xp, min=0, max=S-1)
+
+                x = x_new
+
+            x_hist = np.array(x_hist).astype(int)
+            x0_hist = np.array(x0_hist).astype(int)
+
+            model_input = torch.concat((conditioner, x), dim=1)
+            p_0gt = F.softmax(self.transfomer(model_input, min_t * torch.ones((N,), device=device)), dim=2) # (N, D, S)
+            p_0gt = p_0gt[:, condition_dim:, :]
+            x_0max = torch.max(p_0gt, dim=2)[1]
+            output = torch.concat((conditioner, x_0max), dim=1)
+            return output.detach().cpu().numpy().astype(int), x_hist, x0_hist

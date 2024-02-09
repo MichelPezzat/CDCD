@@ -448,5 +448,5 @@ class D2M(nn.Module):
         **kwargs
     ):
         input = self.prepare_input(batch)
-        output = self.tranformer(input, **kwargs)
+        output = self.tranformer.calc_loss(input)
         return output
