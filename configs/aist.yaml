@@ -118,8 +118,6 @@ dataloader:
         # data_root: /zhuye/data/aistplus
         phase: train
         audio_files: './data/aist_s6/aist_audio_train_segment_s6.txt'
-        video_files: './data/aist_s6/aist_video_train_segment_s6.txt'
-        motion_files: './data/aist_s6/aist_motion_train_segment_s6.txt'
         genre_label: './data/aist_s6/train_genre_s6.npy'
         augment: True
         segment_length: 6
@@ -130,8 +128,6 @@ dataloader:
         # data_root: /zhuye/data/aistplus
         phase: val
         audio_files: './data/aist_s6/aist_audio_test_segment_s6.txt'
-        video_files: './data/aist_s6/aist_video_test_segment_s6.txt'
-        motion_files: './data/aist_s6/aist_motion_test_segment_s6.txt'
         genre_label: './data/aist_s6/test_genre_s6.npy'
         augment: False
         segment_length: 6
