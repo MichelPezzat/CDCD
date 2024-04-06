@@ -28,7 +28,7 @@ def files_to_list(filename):
 
 
 class AISTDataset(Dataset):
-    def __init__(self, data_root, audio_files, motion_files, video_files, genre_label, augment, segment_length, extra_file_path=None, phase = 'train'):
+    def __init__(self, data_root, audio_files, genre_label, augment, segment_length, extra_file_path=None, phase = 'train'):
             
         self.root = os.path.join(data_root, phase)
         self.sampling_rate = 22050
@@ -36,9 +36,6 @@ class AISTDataset(Dataset):
         self.audio_files = files_to_list(audio_files)
         self.audio_files = [Path(audio_files).parent / x for x in self.audio_files]
         self.augment = True
-        self.video_files = files_to_list(video_files)
-        self.video_files = [Path(video_files).parent / x for x in self.video_files]
-        self.motion_files = files_to_list(motion_files)
         self.genre = np.load(genre_label)
         self.extra_file_path = extra_file_path
         if self.extra_file_path != None:
@@ -63,14 +60,6 @@ class AISTDataset(Dataset):
             audio = F.pad(
                 audio, (0, self.segment_length - audio.size(0)), "constant"
             ).data
-
-        # Read video
-        video_filename = self.video_files[index]
-        video = self.load_img_to_torch(video_filename)
-
-        # Read motion
-        motion_filename = self.motion_files[index]
-        motion = self.load_motion_to_torch(motion_filename)
 
         # read genre
         genre = self.genre[index]
