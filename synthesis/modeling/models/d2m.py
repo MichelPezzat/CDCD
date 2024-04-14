@@ -108,21 +108,8 @@ class D2M(nn.Module):
 
     # @torch.no_grad()
     def prepare_condition(self, batch, condition=None):
-        cond_key_motion = self.condition_info_motion['key']
-        # print("check cond_key:", cond_key_motion)
-        cond_motion = batch[cond_key_motion] if condition is None else condition
-        # print("check cond:", cond_motion.size())
-        if torch.is_tensor(cond_motion):
-            cond_motion = cond_motion.to(self.device)
-        cond_motion = self.condition_codec_motion(cond_motion)
 
-        cond_key_video = self.condition_info_video['key']
-        # print("check cond_key:", cond_key_video)
-        cond_video = batch[cond_key_video] if condition is None else condition
-        # print("check cond:", cond_video.size())
-        if torch.is_tensor(cond_video):
-            cond_video = cond_video.to(self.device)      
-
+   
         cond_key_genre = self.condition_info_genre['key']
         # print("check cond_key:", cond_key_genre)
         cond_genre = batch[cond_key_genre] if condition is None else condition
@@ -132,8 +119,6 @@ class D2M(nn.Module):
 
         # cond = self.condition_codec_motion(cond)
         cond_ = {}
-        cond_['condition_motion'] = cond_motion
-        cond_['condition_video'] = cond_video
         cond_['condition_genre'] = cond_genre
 
 
@@ -448,5 +433,5 @@ class D2M(nn.Module):
         **kwargs
     ):
         input = self.prepare_input(batch)
-        output = self.tranformer.calc_loss(input)
+        output = self.tranformer.calc_loss(input, **kwargs)
         return output
