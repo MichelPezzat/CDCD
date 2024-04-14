@@ -20,7 +20,12 @@ class GenericAux():
 
 
 
-    def calc_loss(self, input):
+    def calc_loss(self, input,
+                        return_loss=False,
+                        return_logits=True,
+            return_att_weight=False,
+            is_train=True,
+            **kwargs):
         
         sample_music = input['content_token'].type_as(input['content_token'])
  
@@ -299,7 +304,12 @@ class ConditionalAux(nn.Module):
 
 
 
-    def calc_loss(self, input):
+    def calc_loss(self, input,
+                        return_loss=False,
+                        return_logits=True,
+            return_att_weight=False,
+            is_train=True,
+            **kwargs):
      
         minibatch = input['content_token'].type_as(input['content_token'])
           
@@ -534,14 +544,26 @@ class ConditionalAux(nn.Module):
         writer.add_scalar('sig', sig_mean.detach(), state['n_iter'])
         writer.add_scalar('reg', reg_mean.detach(), state['n_iter'])
 
-        neg_elbo = sig_mean + reg_mean
+        out = {}
 
+        neg_elbo = sig_mean + reg_mean
+        out['neg_elbo'] = neg_elbo
+
+        if return_logits:
+             out['logits'] = x_logits
 
         perm_x_logits = torch.permute(x_logits, (0,2,1))
 
         nll = self.cross_ent(perm_x_logits, data.long())
+        out['nll'] = nll
 
-        return neg_elbo + self.nll_weight * nll
+        loss = neg_elbo + self.nll_weight * nll
+
+        if return_loss:
+             out['loss'] = loss
+
+
+        return out
 
     def sample(
             self,
