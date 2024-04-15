@@ -117,8 +117,8 @@ dataloader:
       params:
         # data_root: /zhuye/data/aistplus
         phase: train
-        audio_files: './data/aist_s6/aist_audio_train_segment_s6.txt'
-        genre_label: './data/aist_s6/train_genre_s6.npy'
+        audio_files: './data/audios_train.txt'
+        genre_label: './data/genres_train.npy'
         augment: True
         segment_length: 6
 
@@ -127,7 +127,7 @@ dataloader:
       params:
         # data_root: /zhuye/data/aistplus
         phase: val
-        audio_files: './data/aist_s6/aist_audio_test_segment_s6.txt'
-        genre_label: './data/aist_s6/test_genre_s6.npy'
+        audio_files: './data/audios_test.txt'
+        genre_label: './data/genres_test.npy'
         augment: False
         segment_length: 6
