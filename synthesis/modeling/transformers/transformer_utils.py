@@ -210,6 +210,7 @@ class Block(nn.Module):
                  timestep_type='adalayernorm',
                  window_size = 8,
                  mlp_type = 'fc',
+                 temb_dim
                  ):
         super().__init__()
         self.if_upsample = if_upsample
@@ -281,18 +282,18 @@ class Block(nn.Module):
   
         if self.attn_type == "selfcross":
             a, att = self.attn1(x, encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, 0:K]
+            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, K:]
             a, att = self.attn2(x, encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, 0:K]
+            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, K:]
         elif self.attn_type == "selfcondition":
             a, att = self.attn(x, encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, 0:K]
+            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, K:]
             x = x + self.mlp(x, encoder_output.long())   # only one really use encoder_output
-            x = film_params[:, None, 0:K] * self.ln2(x) + film_params[:, None, 0:K]
+            x = film_params[:, None, 0:K] * self.ln2(x) + film_params[:, None, K:]
             return x, att
         else:  # 'self'
             a, att = self.attn(x), encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, 0:K]
+            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, K:]
 
         x = x + self.mlp(self.ln2(x))
 
@@ -372,6 +373,7 @@ class UniformRateText2ImageTransformer(nn.Module):
                 diffusion_step = diffusion_step,
                 timestep_type = timestep_type,
                 mlp_type = mlp_type,
+                temb_dim = temb_dim,
         ) for n in range(n_layer)])
 
         # final prediction head
@@ -492,9 +494,9 @@ class UniformRateText2ImageTransformer(nn.Module):
         
         for block_idx in range(len(self.blocks)):   
             if self.use_checkpoint == False:
-                emb, att_weight = self.blocks[block_idx](emb, cond_emb, t.cuda()) # B x (Ld+Lt) x D, B x (Ld+Lt) x (Ld+Lt)
+                emb, att_weight = self.blocks[block_idx](emb, cond_emb, temb.cuda()) # B x (Ld+Lt) x D, B x (Ld+Lt) x (Ld+Lt)
             else:
-                emb, att_weight = checkpoint(self.blocks[block_idx], emb, cond_emb, t.cuda())
+                emb, att_weight = checkpoint(self.blocks[block_idx], emb, cond_emb, temb.cuda())
         logits = self.to_logits(emb) # B x (Ld+Lt) x n
         out = rearrange(logits, 'b l c -> b c l')
         return out

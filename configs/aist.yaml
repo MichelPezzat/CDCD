@@ -3,8 +3,6 @@ model:
   target: synthesis.modeling.models.d2m.D2M
   params:
     content_info: {key: music}
-    condition_info_motion: {key: motion}
-    condition_info_video: {key: video}
     condition_info_genre: {key: genre}
     hop_level: 'top' # top (128), or middle (32), bottom (8) 
     vqvae_load_path: './synthesis/modeling/models/vqvae.pt'
@@ -12,19 +10,15 @@ model:
     content_codec_config: 
       target: synthesis.modeling.codecs.music_codec.jukebox_vqvae.VQVAE
 
-    condition_codec_config:
-      target: synthesis.modeling.codecs.dance_codec.motion.MotionEncoder
-      params:
-        context_length: 6 # the smaple length in seconds, 2 or 6
 
     diffusion_config:      
       target: synthesis.modeling.transformers.tauLDR_losses.ConditionalAux
       params:
         ratio_eps: 80
-        nll_weigth: 'alpha1'       # init_type = fix or cos or linear 
+        nll_weigth: 0.001      # init_type = fix or cos or linear 
         min_time: 5.0e-4
-        one_forward_pass: True
-        condition: [1, 1]    # the loss weight on mask region and non-mask region
+        one_forward_pass: True   # the loss weight on mask region and non-mask region
+        condition_dim: 345 # 2s
         #vqvae_load_path: './synthesis/modeling/models/vqvae.pt'
         #hop_level: 'top' 
 
@@ -32,13 +26,13 @@ model:
           target: synthesis.modeling.codecs.music_codec.jukebox_vqvae.VQVAE
 
         transformer_config:
-          target: synthesis.modeling.transformers.transformer_utils.Text2ImageTransformer
+          target: synthesis.modeling.transformers.transformer_utils.UniformRateText2ImageTransformer
           params:
             attn_type: 'selfcross'
             n_layer: 19
             condition_seq_len: 77    ###### 77 for clip and 256 for dalle
-            content_seq_len: 1033  # 6s * 22050 / 128
-            content_spatial_size: [1, 1033]
+            content_seq_len: 1378  # 8s * 22050 / 128
+            content_spatial_size: [1, 1378]
             n_embd: 1024 # the dim of embedding dims
             condition_dim: 1024
             n_head: 16 
@@ -46,6 +40,8 @@ model:
             resid_pdrop: 0.0
             block_activate: GELU2
             timestep_type: 'adalayernorm'    # adainsnorm or adalayernorm and abs
+            temb_dim: 1024
+            time_scale_factor: 1000
             mlp_hidden_times: 4
             rate_const: 0.03
         condition_emb_config:
@@ -120,7 +116,7 @@ dataloader:
         audio_files: './data/audios_train.txt'
         genre_label: './data/genres_train.npy'
         augment: True
-        segment_length: 6
+        segment_length: 8
 
   validation_datasets:
     - target: synthesis.data.aist_dataset.AISTDataset
@@ -130,4 +126,4 @@ dataloader:
         audio_files: './data/audios_test.txt'
         genre_label: './data/genres_test.npy'
         augment: False
-        segment_length: 6
+        segment_length: 8

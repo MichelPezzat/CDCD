@@ -92,8 +92,6 @@ class AISTDataset(Dataset):
 
         data = {
                 'music': audio.unsqueeze(0),
-                'motion': motion,
-                'video': video,
                 'genre': genre,
                 'negative_music': negative_music
         }
