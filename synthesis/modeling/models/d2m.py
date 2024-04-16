@@ -47,26 +47,22 @@ class D2M(nn.Module):
         self,
         *,
         content_info={'key': 'music'},
-        condition_info_motion={'key': 'motion'},
-        condition_info_video={'key': 'video'},
         condition_info_genre={'key': 'genre'},
         negative_music_samples={'key': 'negative_music'},
         hop_level,
         vqvae_load_path,
         content_codec_config,
-        condition_codec_config,
+        #condition_codec_config,
         diffusion_config,
         loss_config,
         max_vq_len=None,
     ):
         super().__init__()
         self.content_info = content_info
-        self.condition_info_motion = condition_info_motion
-        self.condition_info_video = condition_info_video
         self.condition_info_genre = condition_info_genre
         self.negative_music_info = negative_music_samples
         self.vqvae = instantiate_from_config(content_codec_config)
-        self.condition_codec_motion = instantiate_from_config(condition_codec_config)
+        #self.condition_codec_motion = instantiate_from_config(condition_codec_config)
         self.transformer = instantiate_from_config(diffusion_config)
         self.truncation_forward = False
         self.vqvae.load_state_dict(torch.load(vqvae_load_path))
