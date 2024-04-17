@@ -1,0 +1,2 @@
+recursive-include CDCD *.py
+recursive-include CDCD *.txt
