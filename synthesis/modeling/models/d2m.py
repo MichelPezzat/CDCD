@@ -54,7 +54,6 @@ class D2M(nn.Module):
         content_codec_config,
         #condition_codec_config,
         diffusion_config,
-        loss_config,
         max_vq_len=None,
     ):
         super().__init__()
