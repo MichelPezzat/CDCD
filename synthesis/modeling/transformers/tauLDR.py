@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 class GenericAux():
     def __init__(self, cfg):
         self.cfg = cfg
-        self.transformer = 
         self.ratio_eps = cfg.loss.eps_ratio
         self.nll_weight = cfg.loss.nll_weight
         self.min_time = cfg.loss.min_time
