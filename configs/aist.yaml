@@ -12,7 +12,7 @@ model:
 
 
     diffusion_config:      
-      target: synthesis.modeling.transformers.tauLDR_losses.ConditionalAux
+      target: synthesis.modeling.transformers.tauLDR.ConditionalAux
       params:
         ratio_eps: 80
         nll_weigth: 0.001      # init_type = fix or cos or linear 
