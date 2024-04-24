@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-import lib.losses.losses_utils as losses_utils
+from synthesis.utils.misc import instantiate_from_config
+#import lib.losses.losses_utils as losses_utils
 import math
 import numpy as np
 import torch.autograd.profiler as profiler
@@ -274,7 +275,7 @@ class ConditionalAux(nn.Module):
         condition_emb_config=None,
         transformer_config=None,
         ratio_eps=0,
-        nll_weight=0,
+        nll_weigth=0,
         min_time=0.01,
         one_forward_pass=False,
         condition_dim=32,
