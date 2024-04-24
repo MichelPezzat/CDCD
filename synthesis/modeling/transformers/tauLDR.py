@@ -295,7 +295,7 @@ class ConditionalAux(nn.Module):
         self.num_classes = self.transformer.content_emb.num_embed
         self.shape = transformer_config['params']['content_seq_len']
         self.ratio_eps = ratio_eps
-        self.nll_weight = nll_weight
+        self.nll_weigth = nll_weigth
         self.min_time = min_time
         self.one_forward_pass = one_forward_pass
         self.condition_dim = condition_dim
