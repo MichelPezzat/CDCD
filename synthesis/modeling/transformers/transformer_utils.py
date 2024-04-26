@@ -210,7 +210,7 @@ class Block(nn.Module):
                  timestep_type='adalayernorm',
                  window_size = 8,
                  mlp_type = 'fc',
-                 temb_dim
+                 temb_dim = 128,
                  ):
         super().__init__()
         self.if_upsample = if_upsample
@@ -220,7 +220,7 @@ class Block(nn.Module):
             #if 'adalayernorm' in timestep_type:
              #   self.ln1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
             #else:
-                print("timestep_type wrong")
+             #   print("timestep_type wrong")
         #else:
          #   self.ln1 = nn.LayerNorm(n_embd)
         self.ln1 = nn.LayerNorm(n_embd)
@@ -273,7 +273,7 @@ class Block(nn.Module):
                 nn.Linear(mlp_hidden_times * n_embd, n_embd),
                 nn.Dropout(resid_pdrop),
             )
-        self.film_from_temb = nn.Linear(temb_dim, 2*n_emd)
+        self.film_from_temb = nn.Linear(temb_dim, 2*n_embd)
 
     def forward(self, x, encoder_output, temb, mask=None):
 
@@ -292,7 +292,7 @@ class Block(nn.Module):
             x = film_params[:, None, 0:K] * self.ln2(x) + film_params[:, None, K:]
             return x, att
         else:  # 'self'
-            a, att = self.attn(x), encoder_output, mask=mask)
+            a, att = self.attn(x, encoder_output, mask=mask)
             x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, K:]
 
         x = x + self.mlp(self.ln2(x))
@@ -395,8 +395,7 @@ class UniformRateText2ImageTransformer(nn.Module):
         
         self.S = S = self.content_emb.num_embed
         self.rate_const = rate_const
-        self.device = device
-
+        
         rate = self.rate_const * np.ones((S,S))
         rate = rate - np.diag(np.diag(rate))
         rate = rate - np.diag(np.sum(rate, axis=1))
@@ -500,16 +499,17 @@ class UniformRateText2ImageTransformer(nn.Module):
         logits = self.to_logits(emb) # B x (Ld+Lt) x n
         out = rearrange(logits, 'b l c -> b c l')
         return out
-    
-    def rate(self, t: TensorType["B"],
-                 device) -> TensorType["B", "S", "S"]:
+
+
+    def rate(self, t: ,
+                 device):
         B = t.shape[0]
         S = self.S
         rate_matrix = self.rate_matrix.to(device)
         return torch.tile(rate_matrix.view(1,S,S), (B, 1, 1))
 
     def transition(self, t: TensorType["B"],
-             device) -> TensorType["B", "S", "S"]:
+             device):
         B = t.shape[0]
         S = self.S
         eigen_vecs = self.eigen_vecs.to(device)
