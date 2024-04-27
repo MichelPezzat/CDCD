@@ -508,7 +508,7 @@ class UniformRateText2ImageTransformer(nn.Module):
         rate_matrix = self.rate_matrix.to(device)
         return torch.tile(rate_matrix.view(1,S,S), (B, 1, 1))
 
-    def transition(self, t: TensorType["B"],
+    def transition(self, t,
              device):
         B = t.shape[0]
         S = self.S
