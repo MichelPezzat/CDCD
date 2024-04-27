@@ -101,7 +101,7 @@ solver:
 
 dataloader:
   # data_root: data
-  data_root: /zhuye/data/aistplus
+  data_root: /content/wav
   batch_size: 2
   num_workers: 4
   train_datasets: # a list of configures, so we can combine several schedulers
