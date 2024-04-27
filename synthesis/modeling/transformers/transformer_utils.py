@@ -501,7 +501,7 @@ class UniformRateText2ImageTransformer(nn.Module):
         return out
 
 
-    def rate(self, t: ,
+    def rate(self, t,
                  device):
         B = t.shape[0]
         S = self.S
