@@ -93,7 +93,7 @@ class D2M(nn.Module):
                     params += getattr(self, name).parameters(recurse=recurse)
             return params
 
-    @property
+    #@property
     def device(self):
         return self.transformer.device
 
