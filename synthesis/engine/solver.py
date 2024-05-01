@@ -102,7 +102,7 @@ class Solver(object):
 
         self.logger.log_info(str(get_model_parameters_info(self.model)))
         self.model.cuda()
-        self.device = self.model.device()
+        #self.device = self.model.device()
         if self.args.distributed:
             self.logger.log_info('Distributed, begin DDP the model...')
             self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[self.args.gpu], find_unused_parameters=True)
