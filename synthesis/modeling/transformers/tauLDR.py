@@ -303,6 +303,9 @@ class ConditionalAux(nn.Module):
         self.cross_ent = nn.CrossEntropyLoss()
 
 
+    #@property
+    def device(self):
+        return self.transformer.to_logits[-1].weight.device
 
     def calc_loss(self, input,
                         return_loss=False,
