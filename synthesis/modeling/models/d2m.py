@@ -110,7 +110,7 @@ class D2M(nn.Module):
         cond_genre = batch[cond_key_genre] if condition is None else condition
         # print("check cond:", cond_genre.size())
         if torch.is_tensor(cond_genre):
-            cond_genre = cond_genre.to(self.device) 
+            cond_genre = cond_genre.to(self.device()) 
 
         # cond = self.condition_codec_motion(cond)
         cond_ = {}
@@ -130,7 +130,7 @@ class D2M(nn.Module):
         cont = batch[cont_key]
         # print("check cont_key and cont:", cont_key, cont.size())
         if torch.is_tensor(cont):
-            cont = cont.to(self.device)
+            cont = cont.to(self.device())
 
         # print("check cont size:", cont.size())
         gt_xs, zs_code = self.vqvae._encode(cont.transpose(1,2))
