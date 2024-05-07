@@ -110,7 +110,7 @@ class D2M(nn.Module):
         cond_genre = batch[cond_key_genre] if condition is None else condition
         # print("check cond:", cond_genre.size())
         if torch.is_tensor(cond_genre):
-            cond_genre = cond_genre.to(self.device()) 
+            cond_genre = cond_genre.to(self.device) 
 
         # cond = self.condition_codec_motion(cond)
         cond_ = {}
