@@ -95,7 +95,7 @@ class D2M(nn.Module):
 
     #@property
     def device(self):
-        return self.transformer.device
+        return self.transformer.device()
 
     def get_ema_model(self):
         return self.transformer
@@ -130,7 +130,7 @@ class D2M(nn.Module):
         cont = batch[cont_key]
         # print("check cont_key and cont:", cont_key, cont.size())
         if torch.is_tensor(cont):
-            cont = cont.to(self.device)
+            cont = cont.to(self.device())
 
         # print("check cont size:", cont.size())
         gt_xs, zs_code = self.vqvae._encode(cont.transpose(1,2))
