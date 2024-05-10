@@ -481,7 +481,7 @@ class Solver(object):
         epoch_start = time.time()
         itr_start = time.time()
         itr = -1
-        for itr, batch in enumerate(self.dataloader['train_loader'].dataset):
+        for itr, batch in enumerate(self.dataloader['train_loader']):
             if itr == 0:
                 print("time2 is " + str(time.time()))
             data_time = time.time() - itr_start
