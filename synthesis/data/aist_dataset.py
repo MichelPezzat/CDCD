@@ -93,7 +93,7 @@ class AISTDataset(Dataset):
         data = {
                 'music': audio.unsqueeze(0),
                 'genre': genre,
-                'negative_music': negative_music
+                #'negative_music': negative_music
         }
         
         return data
