@@ -110,7 +110,7 @@ class D2M(nn.Module):
         cond_genre = batch[cond_key_genre] if condition is None else condition
         # print("check cond:", cond_genre.size())
         if torch.is_tensor(cond_genre):
-            cond_genre = cond_genre.to(self.device) 
+            cond_genre = cond_genre.to(self.device()) 
 
         # cond = self.condition_codec_motion(cond)
         cond_ = {}
@@ -149,8 +149,8 @@ class D2M(nn.Module):
         # print("check content_token size:", cont_['content_token'].size())
 
         # print("check batch in inference:", batch)
-        negative_key = self.negative_music_info['key']
-        n_cont = batch[negative_key]
+        #negative_key = self.negative_music_info['key']
+        n_cont = None
         # print("check n_cont size:", n_cont.size())
         if n_cont != None:
             for i in range(n_cont.size()[0]):
@@ -167,8 +167,8 @@ class D2M(nn.Module):
                     else:
                         negative_token = torch.cat((negative_token,temp_token.unsqueeze(0)),0)
             cont_['negative_token'] = negative_token
-        else:
-            cont_['negative_token'] = None
+        #else:
+         #   cont_['negative_token'] = None
         # print("check negative_token size:", cont_['negative_token'].size()) 
 
         return cont_
