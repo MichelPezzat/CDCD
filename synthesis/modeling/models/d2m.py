@@ -133,7 +133,7 @@ class D2M(nn.Module):
             cont = cont.to(self.device())
 
         # print("check cont size:", cont.size())
-        zs_code = self.vqvae.encode(cont.transpose(1,2))
+        _, zs_code = self.vqvae._encode(cont.transpose(1,2))
         # print("check content token:", zs_code[2].size(), zs_code[2][0,:])
         # zs_cont = []
         # zs_cont.append(zs_code[self.hop_level])
