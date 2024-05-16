@@ -512,8 +512,8 @@ class UniformRateText2ImageTransformer(nn.Module):
              device):
         B = t.shape[0]
         S = self.S
-        eigen_vecs = self.eigen_vecs.to(device)
-        eigen_vals = self.eigen_vals.to(device)
+        eigvecs = self.eigvecs.to(device)
+        eigvals = self.eigvals.to(device)
         transitions = eigvecs.view(1, S, S) @ \
             torch.diag_embed(torch.exp(eigvals.view(1, S) * t.view(B,1))) @\
             eigvecs.T.view(1, S, S)
