@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from synthesis.utils.misc import instantiate_from_config
+from torch.cuda.amp import autocast
 #import lib.losses.losses_utils as losses_utils
 import math
 import numpy as np
