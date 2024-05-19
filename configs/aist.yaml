@@ -49,7 +49,7 @@ model:
           target: synthesis.modeling.embeddings.d2m_mask_music_embedding.D2MMaskMusicEmbedding
           params:
             num_embed: 2048  #jukebox codebooksize
-            spatial_size: !!python/tuple [1, 1033]
+            spatial_size: !!python/tuple [1, 1378]
             embed_dim: 1024
             trainable: True
             pos_emb_type: embedding
