@@ -373,7 +373,7 @@ class UniformRateText2ImageTransformer(nn.Module):
                 diffusion_step = diffusion_step,
                 timestep_type = timestep_type,
                 mlp_type = mlp_type,
-                temb_dim = temb_dim,
+                temb_dim = 4*temb_dim,
         ) for n in range(n_layer)])
 
         # final prediction head
