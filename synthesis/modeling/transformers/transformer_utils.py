@@ -497,8 +497,8 @@ class UniformRateText2ImageTransformer(nn.Module):
             else:
                 emb, att_weight = checkpoint(self.blocks[block_idx], emb, cond_emb, temb.cuda())
         logits = self.to_logits(emb) # B x (Ld+Lt) x n
-        out = rearrange(logits, 'b l c -> b c l')
-        return out
+        #out = rearrange(logits, 'b l c -> b c l')
+        return logits
 
 
     def rate(self, t,
