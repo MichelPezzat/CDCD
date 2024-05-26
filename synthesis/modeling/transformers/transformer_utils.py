@@ -377,7 +377,7 @@ class UniformRateText2ImageTransformer(nn.Module):
         ) for n in range(n_layer)])
 
         # final prediction head
-        out_cls = self.content_emb.num_embed-1
+        out_cls = self.content_emb.num_embed
         self.to_logits = nn.Sequential(
             nn.LayerNorm(n_embd),
             nn.Linear(n_embd, out_cls),
@@ -576,7 +576,7 @@ class Condition2ImageTransformer(nn.Module):
         ) for n in range(n_layer)])
 
         # final prediction head
-        out_cls = self.content_emb.num_embed-1
+        out_cls = self.content_emb.num_embed
         self.to_logits = nn.Sequential(
             nn.LayerNorm(n_embd),
             nn.Linear(n_embd, out_cls),

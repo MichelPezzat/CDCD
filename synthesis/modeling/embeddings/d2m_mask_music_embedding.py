@@ -17,7 +17,7 @@ class D2MMaskMusicEmbedding(BaseEmbedding):
             spatial_size = [spatial_size, spatial_size]
 
         self.spatial_size = spatial_size
-        self.num_embed = num_embed + 1
+        self.num_embed = num_embed 
         self.embed_dim = embed_dim
         self.trainable = trainable
         self.pos_emb_type = pos_emb_type
