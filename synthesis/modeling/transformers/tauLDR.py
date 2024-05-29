@@ -545,8 +545,8 @@ class ConditionalAux(nn.Module):
         sig_mean = torch.mean(- outer_sum_sig/sig_norm)
         reg_mean = torch.mean(reg_term)
 
-        writer.add_scalar('sig', sig_mean.detach(), state['n_iter'])
-        writer.add_scalar('reg', reg_mean.detach(), state['n_iter'])
+        #writer.add_scalar('sig', sig_mean.detach(), state['n_iter'])
+        #writer.add_scalar('reg', reg_mean.detach(), state['n_iter'])
 
         out = {}
 
