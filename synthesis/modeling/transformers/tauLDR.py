@@ -556,7 +556,7 @@ class ConditionalAux(nn.Module):
         if return_logits:
              out['logits'] = x_logits
 
-        perm_x_logits = torch.permute(x_logits, (0,2,1))
+        perm_x_logits = torch.permute(x_logits[:, self.condition_dim:, :], (0,2,1))
 
         nll = self.cross_ent(perm_x_logits, data.long())
         out['nll'] = nll
