@@ -561,7 +561,7 @@ class ConditionalAux(nn.Module):
         nll = self.cross_ent(perm_x_logits, data.long())
         out['nll'] = nll
 
-        loss = neg_elbo + self.nll_weight * nll
+        loss = neg_elbo + self.nll_weigth * nll
 
         if return_loss:
              out['loss'] = loss
