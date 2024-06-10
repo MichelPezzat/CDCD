@@ -18,7 +18,7 @@ model:
         nll_weigth: 0.001      # init_type = fix or cos or linear 
         min_time: 5.0e-4
         one_forward_pass: True   # the loss weight on mask region and non-mask region
-        condition_dim: 345 # 2s
+        condition_dim: 516 # 2s
         #vqvae_load_path: './synthesis/modeling/models/vqvae.pt'
         #hop_level: 'top' 
         transformer_config:
@@ -27,7 +27,7 @@ model:
             attn_type: 'selfcross'
             n_layer: 19
             condition_seq_len: 77    ###### 77 for clip and 256 for dalle
-            content_seq_len: 1378  # 8s * 22050 / 128
+            content_seq_len: 1033  # 6s * 22050 / 128
             content_spatial_size: [1, 1378]
             n_embd: 1024 # the dim of embedding dims
             condition_dim: 1024
@@ -49,7 +49,7 @@ model:
           target: synthesis.modeling.embeddings.d2m_mask_music_embedding.D2MMaskMusicEmbedding
           params:
             num_embed: 2048  #jukebox codebooksize
-            spatial_size: !!python/tuple [1, 1378]
+            spatial_size: !!python/tuple [1, 1033]
             embed_dim: 1024
             trainable: True
             pos_emb_type: embedding
@@ -112,7 +112,7 @@ dataloader:
         audio_files: './data/audios_train.txt'
         genre_label: './data/genres_train.npy'
         augment: True
-        segment_length: 8
+        segment_length: 6
 
   validation_datasets:
     - target: synthesis.data.aist_dataset.AISTDataset
@@ -122,4 +122,4 @@ dataloader:
         audio_files: './data/audios_test.txt'
         genre_label: './data/genres_test.npy'
         augment: False
-        segment_length: 8
+        segment_length: 6
