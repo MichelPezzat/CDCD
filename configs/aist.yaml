@@ -25,13 +25,13 @@ model:
           target: synthesis.modeling.transformers.transformer_utils.UniformRateText2ImageTransformer
           params:
             attn_type: 'selfcross'
-            n_layer: 19
+            n_layer: 16
             condition_seq_len: 77    ###### 77 for clip and 256 for dalle
             content_seq_len: 1033  # 6s * 22050 / 128
             content_spatial_size: [1, 1378]
             n_embd: 1024 # the dim of embedding dims
             condition_dim: 1024
-            n_head: 16 
+            n_head: 8
             attn_pdrop: 0.0
             resid_pdrop: 0.0
             block_activate: GELU2
