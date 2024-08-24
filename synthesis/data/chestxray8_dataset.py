@@ -14,12 +14,22 @@ def load_img(filepath):
     img = Image.open(filepath).convert('RGB')
     return img
 
+def files_to_list(filename):
+    """
+    Takes a text file of filenames and makes a list of filenames
+    """
+    with open(filename, encoding="utf-8") as f:
+        files = f.readlines()
+
+    files = [f.rstrip() for f in files]
+    return files
+
 class ChestXray8Dataset(Dataset):
-    def __init__(self, data_root, negative_sample_path, phase = 'train', im_preprocessor_config=None):
+    def __init__(self, data_root, images_files,negative_sample_path, phase = 'train', im_preprocessor_config=None):
         self.transform = instantiate_from_config(im_preprocessor_config)
-        self.image_folder = os.path.join(data_root, 'images')
-        self.root = os.path.join(data_root, phase)
-        data_path = os.path.join(self.root, "Data_Entry_2017.csv")
+        self.images_files = files_to_list(images_files)
+        self.images_files = [Path(images_files).parent / x for x in self.images_files]
+        data_path = os.path.join(data_root, "Data_Entry_2017.csv")
         #self.name_list = pickle.load(open(pickle_path, 'rb'), encoding="bytes")
         data = pd.read_csv(data_path)
         self.negative_sample_path = negative_sample_path
@@ -60,7 +70,7 @@ class ChestXray8Dataset(Dataset):
  
     def __getitem__(self, index):
         #name = self.name_list[index]
-        image_path = os.path.join(self.image_folder, name+'.jpg')
+        image_path = self.image_files[index]
         # if os.path.exists(image_path):
         #     print(index, image_path)
         image = load_img(image_path)
