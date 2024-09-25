@@ -108,7 +108,6 @@ def main():
 
     if args.seed is not None or args.cudnn_deterministic:
         seed_everything(args.seed, args.cudnn_deterministic)
-
     if args.gpu is not None:
         warnings.warn('You have chosen a specific GPU. This will completely disable ddp.')
         torch.cuda.set_device(args.gpu)
@@ -130,6 +129,7 @@ def main_worker(local_rank, args):
     args.local_rank = local_rank
     args.global_rank = args.local_rank + args.node_rank * args.ngpus_per_node
     args.distributed = args.world_size > 1
+    
 
     # load config
     config = load_yaml_config(args.config_file)

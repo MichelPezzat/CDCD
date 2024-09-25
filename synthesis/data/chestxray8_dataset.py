@@ -14,16 +14,30 @@ def load_img(filepath):
     img = Image.open(filepath).convert('RGB')
     return img
 
+def files_to_list(filename):
+    """
+    Takes a text file of filenames and makes a list of filenames
+    """
+    with open(filename, encoding="utf-8") as f:
+        files = f.readlines()
+
+    files = [f.rstrip() for f in files]
+    return files
+
+
 class ChestXray8Dataset(Dataset):
-    def __init__(self, data_root, negative_sample_path, phase = 'train', im_preprocessor_config=None):
+    def __init__(self, data_root, image_files, negative_sample_path, phase = 'train', im_preprocessor_config=None):
         self.transform = instantiate_from_config(im_preprocessor_config)
-        self.image_folder = os.path.join(data_root, 'images')
-        self.root = os.path.join(data_root, phase)
-        data_path = os.path.join(self.root, "Data_Entry_2017.csv")
+        self.image_path = os.path.join(data_root, 'images')
+        self.image_index = files_to_list(image_files)
+        self.image_files = [os.path.join(self.image_path, x) for x in self.image_index]
+        #self.root = os.path.join(data_root, phase)
+        caption_file = os.path.join(data_root, "Data_Entry_2017_v2020.csv")
         #self.name_list = pickle.load(open(pickle_path, 'rb'), encoding="bytes")
-        data = pd.read_csv(data_path)
+        caption = pd.read_csv(caption_file)
+        self.names_list = caption['Image Index']
         self.negative_sample_path = negative_sample_path
-        #self.num = len(self.name_list)
+        self.num = len(self.names_list)
         self.phase = phase
         if self.phase == 'train' and self.negative_sample_path != None:
             # print("negative_sample_path:", negative_sample_path)
@@ -36,18 +50,22 @@ class ChestXray8Dataset(Dataset):
             self.extra_img = None
 
         # load all caption file to dict in memory
-        self.caption_dict =  data['Finding Labels']
+        #self.caption_labels =  caption['Finding Labels']
 
 
         # print("check name_list:", len(self.name_list))
         # exit()
-
-        # for index in tqdm(range(self.num)):
-        #     name = self.name_list[index]
-        #     this_text_path = os.path.join(data_root, 'text', 'text', name+'.txt')
-        #     image_path = os.path.join(self.image_folder, name+'.jpg')
+        caption_labels = {}
+        for index in tqdm(range(self.num)):
+             name = self.names_list[index]
+             if name in self.image_index:
+                caption_labels[index] = caption['Finding Labels'][index]
+        #    this_text_path = os.path.join(data_root, 'text', 'text', name+'.txt')
+        #    image_path = os.path.join(self.image_folder, name+'.jpg')
         #     if not os.path.exists(image_path) or not os.path.exists(this_text_path):
         #         print("missing file:", image_path, this_text_path)
+        self.caption_labels = list(caption_labels.values())
+        #print(len(self.image_files),len(self.caption_labels))
 
 
 
@@ -56,17 +74,19 @@ class ChestXray8Dataset(Dataset):
 
 
     def __len__(self):
-        return self.num
+        return len(self.image_files)
  
     def __getitem__(self, index):
         #name = self.name_list[index]
-        image_path = os.path.join(self.image_folder, name+'.jpg')
+        #image_path = os.path.join(self.image_folder, name+'.jpg')
         # if os.path.exists(image_path):
         #     print(index, image_path)
+        #print(index)
+        image_path = self.image_files[index]
         image = load_img(image_path)
         image = np.array(image).astype(np.uint8)
         image = self.transform(image = image)['image']
-        caption_list = self.caption_dict[index]
+        caption_list = self.caption_labels[index]
         caption = caption_list.replace('|', '').lower()
         # else:
         if self.phase == 'train' and self.extra_img != None:

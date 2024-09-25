@@ -36,6 +36,7 @@ def build_dataloader(config, args=None, return_dataset=False):
         val_sampler = None
         train_iters = len(train_dataset) // dataset_cfg['batch_size']
         val_iters = len(val_dataset) // dataset_cfg['batch_size']
+        print(len(train_dataset), train_iters)
 
     # if args is not None and not args.debug:
     #     num_workers = max(2*dataset_cfg['batch_size'], dataset_cfg['num_workers'])
