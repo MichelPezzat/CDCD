@@ -90,22 +90,25 @@ class ChestXray8Dataset(Dataset):
         caption = caption_list.replace('|', '').lower()
         # else:
         if self.phase == 'train' and self.extra_img != None:
-            neg_sample = self.extra_img[index]
-            for i in range(len(neg_sample)):
-                img = load_img(os.path.join(self.image_folder, neg_sample[i]))
-                img = np.array(img).astype(np.uint8)
+
+            for i in range(10):
+                idx = random.randint(0, self.__len__()-1)
+                #neg_img_path = self.A_paths[idx % self.A_size]
+                neg_img_path = self.image_files[indx % self.__len__()]
+                img = load_img(neg_img_path)
+                image = np.array(image).astype(np.uint8)                
                 img = self.transform(image = img)['image']
                 if i == 0:
                     neg_img = np.expand_dims(img, axis=0)
                 else:
                     img = np.expand_dims(img, axis=0)
-                    neg_img = np.concatenate((neg_img, img), axis=0) 
-            # print("check data loader:", np.shape(image), np.shape(neg_img))
+                    neg_img = np.concatenate((neg_img, img), axis=0)
+            # print("check neg_img:", np.shape(neg_img))
             data = {
-                    'image': np.transpose(image.astype(np.float32), (2, 0, 1)),
-                    'text': caption,
+                    'image': np.transpose(A.astype(np.float32), (2, 0, 1)),
+                    'label': A_label,
                     'negative_img': np.transpose(neg_img.astype(np.float32), (0, 3, 1, 2)),
-                }
+                }   
         else:
             # neg_img = None
             data = {

@@ -36,7 +36,7 @@ model:
         contrastive_intra_loss_weight: 0 
         intra_mode: 'step'
         intra_neg_sample: 10
-        contrastive_inter_loss_weight: 5.0e-6 
+        contrastive_inter_loss_weight: 0
         inter_mode: 'sample'
         inter_neg_sample: 10 
         adaptive_auxiliary_loss: True
