@@ -25,14 +25,15 @@ def files_to_list(filename):
     return files
 
 
-class ChestXray8Dataset(Dataset):
+class CheXbertDataset(Dataset):
     def __init__(self, data_root, image_files, negative_sample_path, phase = 'train', im_preprocessor_config=None):
         self.transform = instantiate_from_config(im_preprocessor_config)
         self.image_path = os.path.join(data_root, 'images')
         self.image_index = files_to_list(image_files)
         self.image_files = [os.path.join(self.image_path, x) for x in self.image_index]
         #self.root = os.path.join(data_root, phase)
-        caption_file = os.path.join(data_root, "Data_Entry_2017_v2020.csv")
+        caption_file = os.path.join(data_root, "train_visualCheXbert.csv")
+        caption_file = caption_file[caption_file['Path'].str.contains("frontal")]
         #self.name_list = pickle.load(open(pickle_path, 'rb'), encoding="bytes")
         caption = pd.read_csv(caption_file)
         self.names_list = caption['Image Index']

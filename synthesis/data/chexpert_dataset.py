@@ -25,20 +25,27 @@ def files_to_list(filename):
     return files
 
 
-class ChestXray8Dataset(Dataset):
+class CheXbertDataset(Dataset):
     def __init__(self, data_root, image_files, negative_sample_path, phase = 'train', im_preprocessor_config=None):
         self.transform = instantiate_from_config(im_preprocessor_config)
         self.image_path = os.path.join(data_root, 'images')
-        self.image_index = files_to_list(image_files)
-        self.image_files = [os.path.join(self.image_path, x) for x in self.image_index]
+        #self.image_files = [os.path.join(self.image_path, x) for x in self.image_index]
         #self.root = os.path.join(data_root, phase)
-        caption_file = os.path.join(data_root, "Data_Entry_2017_v2020.csv")
-        #self.name_list = pickle.load(open(pickle_path, 'rb'), encoding="bytes")
-        caption = pd.read_csv(caption_file)
-        self.names_list = caption['Image Index']
-        self.negative_sample_path = negative_sample_path
-        self.num = len(self.names_list)
         self.phase = phase
+        if self.phase== 'train':
+            caption_file = os.path.join(data_root, "train_VisualCheXbert.csv")
+            #self.name_list = pickle.load(open(pickle_path, 'rb'), encoding="bytes")
+            caption = pd.read_csv(caption_file)
+            caption_frontal = caption['Path'].str.contains("frontal")]
+            self.caption = caption[caption_frontal]
+            self.images_index = list(self.caption['Path'])
+            self.image_files = [os.path.join(self.image_path, x) for x in self.image_index]
+        
+        self.labels = list(caption.columns[5:])            
+        #self.names_list = caption['Image Index']
+        self.negative_sample_path = negative_sample_path
+        self.num = len(self.image_index)
+
         if self.phase == 'train' and self.negative_sample_path != None:
             # print("negative_sample_path:", negative_sample_path)
             with open(negative_sample_path, 'r') as f:
@@ -57,9 +64,12 @@ class ChestXray8Dataset(Dataset):
         # exit()
         caption_labels = {}
         for index in tqdm(range(self.num)):
-             name = self.names_list[index]
-             if name in self.image_index:
-                caption_labels[index] = caption['Finding Labels'][index]
+             if caption_frontal[index]
+                 for label in labels:
+                      caption_label = ''
+                      if self.caption[label][index] == 1:
+                         caption_label = caption_label + '' + label
+                 caption_labels[index] = caption_label
         #    this_text_path = os.path.join(data_root, 'text', 'text', name+'.txt')
         #    image_path = os.path.join(self.image_folder, name+'.jpg')
         #     if not os.path.exists(image_path) or not os.path.exists(this_text_path):

@@ -36,7 +36,7 @@ model:
         contrastive_intra_loss_weight: 0 
         intra_mode: 'step'
         intra_neg_sample: 10
-        contrastive_inter_loss_weight: 5.0e-6 
+        contrastive_inter_loss_weight: 0
         inter_mode: 'sample'
         inter_neg_sample: 10 
         adaptive_auxiliary_loss: True
@@ -79,10 +79,10 @@ model:
             pos_emb_type: embedding
 
 solver:
-  base_lr: 3.0e-6
+  base_lr: 5.0e-6
   adjust_lr: none # not adjust lr according to total batch_size
   max_epochs: 400
-  save_epochs: 30
+  save_epochs: 15
   validation_epochs: 400
   sample_iterations: epoch  # epoch #30000      # how many iterations to perform sampling once ?
   print_specific_things: True
@@ -111,7 +111,7 @@ solver:
       target: synthesis.engine.lr_scheduler.ReduceLROnPlateauWithWarmup
       params:
         factor: 0.5
-        patience: 25000
+        patience: 60000
         min_lr: 1.0e-6
         threshold: 1.0e-1
         threshold_mode: rel
