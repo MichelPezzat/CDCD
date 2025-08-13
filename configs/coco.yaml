@@ -9,11 +9,11 @@ model:
       params:
         trainable: False
         token_shape: [32, 32]
-        config_path: '/home/zhuye/VQ-Diffusion_d2m/OUTPUT/pretrained_model/taming_dvae/taming_f8_8192_openimages.yaml'
+        config_path: '/content/CDCD/OUTPUT/pretrained_model/taming_dvae/taming_f8_8192_openimages.yaml'
         ckpt_path: '/home/zhuye/VQ-Diffusion_d2m/OUTPUT/pretrained_model/taming_dvae/taming_f8_8192_openimages_last.pth'
         num_tokens: 8192
         quantize_number: 2887
-        mapping_path: '/home/zhuye/VQ-Diffusion_d2m/help_folder/statistics/taming_vqvae_2887.pt'
+        mapping_path: '/content/CDCD/help_folder/statistics/taming_vqvae_2887.pt'
     condition_codec_config:
       target: synthesis.modeling.codecs.text_codec.tokenize.Tokenize
       params:
