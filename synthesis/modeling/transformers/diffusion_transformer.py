@@ -16,11 +16,13 @@ import numpy as np
 from einops import rearrange
 from synthesis.distributed.distributed import is_primary, get_rank
 
+
+from transformers import AutoModel
 from inspect import isfunction
 from torch.cuda.amp import autocast
 from synthesis.modeling.transformers.transformer_utils import Text2ImageTransformer
 eps = 1e-8
-
+url = "microsoft/BiomedVLP-BioViL-T"
 
 def neg_sampling(x, mode):
     if mode == 'shift': # shift of 1 chunk
@@ -110,7 +112,6 @@ class DiffusionTransformer(nn.Module):
         self,
         *,
         content_emb_config=None,
-        condition_emb_config=None,
         transformer_config=None,
 
         diffusion_step=100,
@@ -128,12 +129,10 @@ class DiffusionTransformer(nn.Module):
     ):
         super().__init__()
 
-        if condition_emb_config is None:
-            self.condition_emb = None
-        else:
-            # for condition and config, we learn a seperate embedding
-            self.condition_emb = instantiate_from_config(condition_emb_config)
-            self.condition_dim = self.condition_emb.embed_dim
+        
+        # for condition and config, we learn a seperate embedding
+        self.condition_emb = AutoModel.from_pretrained(url, trust_remote_code=True)
+            
        
         transformer_config['params']['diffusion_step'] = diffusion_step
         transformer_config['params']['content_emb_config'] = content_emb_config
@@ -589,7 +588,8 @@ class DiffusionTransformer(nn.Module):
         if self.condition_emb is not None:
             with autocast(enabled=False):
                 with torch.no_grad():
-                    cond_emb = self.condition_emb(input['condition_token']) # B x Ld x D   #256*1024
+                    cond_emb = self.condition_emb(input['condition_input_ids'], return_dict=False, 
+                    attention_mask=input['condition_attention_mask'])[0] # B x Ld x D   #256*1024
                 cond_emb = cond_emb.float()
         else: # share condition embeding with content
             if input.get('condition_embed_token') == None:
