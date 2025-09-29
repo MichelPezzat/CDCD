@@ -24,7 +24,7 @@ model:
         contrastive_intra_loss_weight: 0 
         intra_mode: 'step'
         intra_neg_sample: 10
-        contrastive_inter_loss_weight: 0
+        contrastive_inter_loss_weight: 5.0e-6
         inter_mode: 'sample'
         inter_neg_sample: 10 
         adaptive_auxiliary_loss: True
@@ -106,7 +106,7 @@ dataloader:
       params:
         data_root: /home/michel/data/
         phase: TRAIN
-        negative_sample_path: 
+        negative_sample_path: /home/michel/data/images/ 
         im_preprocessor_config:
           target: synthesis.data.utils.image_preprocessor.DalleTransformerPreprocessor   # ImageNet
           params:
@@ -117,7 +117,7 @@ dataloader:
       params:
         data_root: /home/michel/data/
         phase: TEST
-        negative_sample_path:
+        negative_sample_path: /home/michel/data/images/
         im_preprocessor_config:
           target: synthesis.data.utils.image_preprocessor.DalleTransformerPreprocessor
           params:

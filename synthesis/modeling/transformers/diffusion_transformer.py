@@ -22,7 +22,7 @@ from inspect import isfunction
 from torch.cuda.amp import autocast
 from synthesis.modeling.transformers.transformer_utils import Text2ImageTransformer
 eps = 1e-8
-url = "microsoft/BiomedVLP-BioViL-T"
+url = "microsoft/BiomedVLP-CXR-BERT-specialized"
 
 def neg_sampling(x, mode):
     if mode == 'shift': # shift of 1 chunk
@@ -459,7 +459,7 @@ class DiffusionTransformer(nn.Module):
         ### Contrastive inter loss
         if self.contrastive_inter_loss_weight != 0 and is_train == True and self.inter_mode == 'sample' and negative_img != None:
             loss4 = 0
-            # print("------Sample Contrastive with Inter negatives!----")
+            #print("------Sample Contrastive with Inter negatives!----")
             extra_sample = 10 # negative_img.size()[1]
             for k in range(extra_sample):
                 x_extra = negative_img[:,k,:]
@@ -476,7 +476,7 @@ class DiffusionTransformer(nn.Module):
                 else:
                     addition_loss_weight = 1.0
                 loss4 += addition_loss_weight * self.contrastive_inter_loss_weight * kl_extra_loss / pt
-                # print("Sample Contrastive with inter negative:", k, loss4)
+                #print("Sample Contrastive with inter negative:", k, loss4)
             vb_loss -= loss4/extra_sample  
 
         if self.contrastive_inter_loss_weight != 0 and is_train == True and self.inter_mode == 'step' and negative_img != None:
@@ -647,7 +647,8 @@ class DiffusionTransformer(nn.Module):
 
         if self.condition_emb is not None:  # do this
             with torch.no_grad():
-                cond_emb = self.condition_emb(input['condition_token']) # B x Ld x D   #256*1024
+                cond_emb = self.condition_emb(input['condition_token'], return_dict=False,
+                    attention_mask=input['condition_mask'])[0]  # B x Ld x D   #256*1024
             cond_emb = cond_emb.float()
         else: # share condition embeding with content
             if input.get('condition_embed_token', None) != None:

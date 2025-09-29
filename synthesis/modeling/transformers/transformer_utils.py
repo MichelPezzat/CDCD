@@ -19,25 +19,6 @@ from inspect import isfunction
 from torch.cuda.amp import autocast
 from torch.utils.checkpoint import checkpoint
 
-
-def transformer_timestep_embedding(timesteps, embedding_dim, max_positions=10000):
-    assert len(timesteps.shape) == 1  # and timesteps.dtype == tf.int32
-    half_dim = embedding_dim // 2
-    # magic number 10000 is from transformers
-    emb = math.log(max_positions) / (half_dim - 1)
-    # emb = math.log(2.) / (half_dim - 1)
-    emb = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -emb)
-    # emb = tf.range(num_embeddings, dtype=jnp.float32)[:, None] * emb[None, :]
-    # emb = tf.cast(timesteps, dtype=jnp.float32)[:, None] * emb[None, :]
-    emb = timesteps.float()[:, None] * emb[None, :]
-    emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
-    if embedding_dim % 2 == 1:  # zero pad
-       emb = F.pad(emb, (0, 1), mode='constant')
-    assert emb.shape == (timesteps.shape[0], embedding_dim)
-    return emb
-
-
-
 class FullAttention(nn.Module):
     def __init__(self,
                  n_embd, # the embed dim
@@ -210,20 +191,19 @@ class Block(nn.Module):
                  timestep_type='adalayernorm',
                  window_size = 8,
                  mlp_type = 'fc',
-                 temb_dim = 128,
                  ):
         super().__init__()
         self.if_upsample = if_upsample
         self.attn_type = attn_type
 
-        #if attn_type in ['selfcross', 'selfcondition', 'self']: 
-            #if 'adalayernorm' in timestep_type:
-             #   self.ln1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
-            #else:
-             #   print("timestep_type wrong")
-        #else:
-         #   self.ln1 = nn.LayerNorm(n_embd)
-        self.ln1 = nn.LayerNorm(n_embd)
+        if attn_type in ['selfcross', 'selfcondition', 'self']: 
+            if 'adalayernorm' in timestep_type:
+                self.ln1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
+            else:
+                print("timestep_type wrong")
+        else:
+            self.ln1 = nn.LayerNorm(n_embd)
+        
         self.ln2 = nn.LayerNorm(n_embd)
         # self.if_selfcross = False
         if attn_type in ['self', 'selfcondition']:
@@ -234,11 +214,11 @@ class Block(nn.Module):
                 attn_pdrop=attn_pdrop,
                 resid_pdrop=resid_pdrop,
             )
-          #  if attn_type == 'selfcondition':
-           #     if 'adalayernorm' in class_type:
-            #        self.ln2 = AdaLayerNorm(n_embd, class_number, class_type)
-             #   else:
-              #      self.ln2 = AdaInsNorm(n_embd, class_number, class_type)
+            if attn_type == 'selfcondition':
+                if 'adalayernorm' in class_type:
+                    self.ln2 = AdaLayerNorm(n_embd, class_number, class_type)
+                else:
+                    self.ln2 = AdaInsNorm(n_embd, class_number, class_type)
         elif attn_type == 'selfcross':
             self.attn1 = FullAttention(
                     n_embd=n_embd,
@@ -256,10 +236,10 @@ class Block(nn.Module):
                     attn_pdrop=attn_pdrop,
                     resid_pdrop=resid_pdrop,
                     )
-            #if 'adalayernorm' in timestep_type:
-             #   self.ln1_1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
-            #else:
-             #   print("timestep_type wrong")
+            if 'adalayernorm' in timestep_type:
+                self.ln1_1 = AdaLayerNorm(n_embd, diffusion_step, timestep_type)
+            else:
+                print("timestep_type wrong")
         else:
             print("attn_type error")
         assert activate in ['GELU', 'GELU2']
@@ -273,27 +253,21 @@ class Block(nn.Module):
                 nn.Linear(mlp_hidden_times * n_embd, n_embd),
                 nn.Dropout(resid_pdrop),
             )
-        self.film_from_temb = nn.Linear(temb_dim, 2*n_embd)
 
-    def forward(self, x, encoder_output, temb, mask=None):
-
-        B, L, K = x.shape
-        film_params = self.film_from_temb(temb)
-  
+    def forward(self, x, encoder_output, timestep, mask=None):    
         if self.attn_type == "selfcross":
-            a, att = self.attn1(x, encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, K:]
-            a, att = self.attn2(x, encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, K:]
+            a, att = self.attn1(self.ln1(x, timestep), encoder_output, mask=mask)
+            x = x + a
+            a, att = self.attn2(self.ln1_1(x, timestep), encoder_output, mask=mask)
+            x = x + a
         elif self.attn_type == "selfcondition":
-            a, att = self.attn(x, encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln1(x + a) + film_params[:, None, K:]
-            x = x + self.mlp(x, encoder_output.long())   # only one really use encoder_output
-            x = film_params[:, None, 0:K] * self.ln2(x) + film_params[:, None, K:]
+            a, att = self.attn(self.ln1(x, timestep), encoder_output, mask=mask)
+            x = x + a
+            x = x + self.mlp(self.ln2(x, encoder_output.long()))   # only one really use encoder_output
             return x, att
         else:  # 'self'
-            a, att = self.attn(x, encoder_output, mask=mask)
-            x = film_params[:, None, 0:K] * self.ln2(x + a) + film_params[:, None, K:]
+            a, att = self.attn(self.ln1(x, timestep), encoder_output, mask=mask)
+            x = x + a 
 
         x = x + self.mlp(self.ln2(x))
 
@@ -314,7 +288,7 @@ class Conv_MLP(nn.Module):
         x = rearrange(x, 'b c h w -> b (h w) c')
         return self.dropout(x)
 
-class UniformRateText2ImageTransformer(nn.Module):
+class Text2ImageTransformer(nn.Module):
     def __init__(
         self,
         condition_seq_len=77,
@@ -331,23 +305,14 @@ class UniformRateText2ImageTransformer(nn.Module):
         condition_dim=512,
         diffusion_step=1000,
         timestep_type='adalayernorm',
-        temb_dim=128,
-        time_scale_factor=1000,
         content_emb_config=None,
         mlp_type='fc',
-        rate_const=0.0,
         checkpoint=False,
-        
     ):
         super().__init__()
 
         self.use_checkpoint = checkpoint
         self.content_emb = instantiate_from_config(content_emb_config)
-
-
-        self.temb_dim = temb_dim
-        self.time_scale_factor = time_scale_factor
-
 
         # transformer
         assert attn_type == 'selfcross'
@@ -373,11 +338,10 @@ class UniformRateText2ImageTransformer(nn.Module):
                 diffusion_step = diffusion_step,
                 timestep_type = timestep_type,
                 mlp_type = mlp_type,
-                temb_dim = 4*temb_dim,
         ) for n in range(n_layer)])
 
         # final prediction head
-        out_cls = self.content_emb.num_embed
+        out_cls = self.content_emb.num_embed-1
         self.to_logits = nn.Sequential(
             nn.LayerNorm(n_embd),
             nn.Linear(n_embd, out_cls),
@@ -386,25 +350,6 @@ class UniformRateText2ImageTransformer(nn.Module):
         self.condition_seq_len = condition_seq_len
         self.content_seq_len = content_seq_len
 
-
-        self.temb_net = nn.Sequential(
-            nn.Linear(temb_dim, mlp_hidden_times*n_embd),
-            nn.ReLU(),
-            nn.Linear(mlp_hidden_times*n_embd, 4*temb_dim)
-        )
-        
-        self.S = S = self.content_emb.num_embed
-        self.rate_const = rate_const
-        
-        rate = self.rate_const * np.ones((S,S))
-        rate = rate - np.diag(np.diag(rate))
-        rate = rate - np.diag(np.sum(rate, axis=1))
-        eigvals, eigvecs = np.linalg.eigh(rate)
-
-        self.rate_matrix = torch.from_numpy(rate).float()
-        self.eigvals = torch.from_numpy(eigvals).float()
-        self.eigvecs = torch.from_numpy(eigvecs).float()
-        
         self.apply(self._init_weights)
 
     def _init_weights(self, module):
@@ -478,52 +423,17 @@ class UniformRateText2ImageTransformer(nn.Module):
             input, 
             cond_emb,
             t):
-
-
-        #input = nn.functional.one_hot(input, num_classes=self.content_emb.num_embed)
         cont_emb = self.content_emb(input)
         emb = cont_emb
-        
 
-        temb = self.temb_net(
-            transformer_timestep_embedding(
-                t*self.time_scale_factor, self.temb_dim
-            )
-        )
-        
         for block_idx in range(len(self.blocks)):   
             if self.use_checkpoint == False:
-                emb, att_weight = self.blocks[block_idx](emb, cond_emb, temb.cuda()) # B x (Ld+Lt) x D, B x (Ld+Lt) x (Ld+Lt)
+                emb, att_weight = self.blocks[block_idx](emb, cond_emb, t.cuda()) # B x (Ld+Lt) x D, B x (Ld+Lt) x (Ld+Lt)
             else:
-                emb, att_weight = checkpoint(self.blocks[block_idx], emb, cond_emb, temb.cuda())
+                emb, att_weight = checkpoint(self.blocks[block_idx], emb, cond_emb, t.cuda())
         logits = self.to_logits(emb) # B x (Ld+Lt) x n
-        #out = rearrange(logits, 'b l c -> b c l')
-        return logits
-
-
-    def rate(self, t,
-                 device):
-        B = t.shape[0]
-        S = self.S
-        rate_matrix = self.rate_matrix.to(device)
-        return torch.tile(rate_matrix.view(1,S,S), (B, 1, 1))
-
-    def transition(self, t,
-             device):
-        B = t.shape[0]
-        S = self.S
-        eigvecs = self.eigvecs.to(device)
-        eigvals = self.eigvals.to(device)
-        transitions = eigvecs.view(1, S, S) @ \
-            torch.diag_embed(torch.exp(eigvals.view(1, S) * t.view(B,1))) @\
-            eigvecs.T.view(1, S, S)
-
-        if torch.min(transitions) < -1e-6:
-            print(f"[Warning] UniformRate, large negative transition values {torch.min(transitions)}")
-
-        transitions[transitions < 1e-8] = 0.0
-
-        return transitions
+        out = rearrange(logits, 'b l c -> b c l')
+        return out
 
 class Condition2ImageTransformer(nn.Module):
     def __init__(
@@ -576,7 +486,7 @@ class Condition2ImageTransformer(nn.Module):
         ) for n in range(n_layer)])
 
         # final prediction head
-        out_cls = self.content_emb.num_embed
+        out_cls = self.content_emb.num_embed-1
         self.to_logits = nn.Sequential(
             nn.LayerNorm(n_embd),
             nn.Linear(n_embd, out_cls),
@@ -806,9 +716,3 @@ class UnCondition2ImageTransformer(nn.Module):
         logits = self.to_logits(emb) # B x (Ld+Lt) x n
         out = rearrange(logits, 'b l c -> b c l')
         return out
-
-
-
-        
-
-       

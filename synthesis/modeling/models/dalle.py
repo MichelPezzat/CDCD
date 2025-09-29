@@ -204,9 +204,9 @@ class DALLE(nn.Module):
             self.truncation_forward = True
 
         if len(sample_type.split(',')) == 2 and sample_type.split(',')[1][:4]=='fast':
-            trans_out = self.transformer.sample_fast(condition_token=condition['condition_token'],
-                                                condition_mask=condition.get('condition_mask', None),
-                                                condition_embed=condition.get('condition_embed_token', None),
+            trans_out = self.transformer.sample_fast(condition_token=condition['condition_input_ids'],
+                                                condition_mask=condition['condition_attention_mask'],
+                                                condition_embed=None,
                                                 content_token=content_token,
                                                 filter_ratio=filter_ratio,
                                                 temperature=temperature,
@@ -217,9 +217,9 @@ class DALLE(nn.Module):
                                                 skip_step=int(sample_type.split(',')[1][4:]))
 
         else:
-            trans_out = self.transformer.sample(condition_token=condition['condition_token'],
-                                            condition_mask=condition.get('condition_mask', None),
-                                            condition_embed=condition.get('condition_embed_token', None),
+            trans_out = self.transformer.sample(condition_token=condition['condition_input_ids'],
+                                            condition_mask=condition['condition_attention_mask'],
+                                            condition_embed= None,
                                             content_token=content_token,
                                             filter_ratio=filter_ratio,
                                             temperature=temperature,

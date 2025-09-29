@@ -2,13 +2,15 @@ from torch.utils.data import Dataset
 import numpy as np
 import io
 import pandas as pd
-from PIL import Image
+from PIL import Image, ImageFile
 import os
 import json
 import random
 from synthesis.utils.misc import instantiate_from_config
 from tqdm import tqdm
 import pickle
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def load_img(filepath):
     img = Image.open(filepath).convert('RGB')
@@ -26,18 +28,18 @@ class MIMIC_CXRDataset(Dataset):
 
         self.num = len(self.annotations)
         self.phase = phase
-
+        print(negative_sample_path)
+        self.negative_sample_path = negative_sample_path
  
-        if self.phase == 'train' and self.negative_sample_path != None:
-            # print("negative_sample_path:", negative_sample_path)
-            with open(negative_sample_path, 'r') as f:
-                self.extra_img = json.load(f)
-            # self.extra_img = os.path.join()
+        if self.phase == 'TRAIN' and self.negative_sample_path != None:
+            print("negative_sample_path:", negative_sample_path)
+            extra_img = pd.read_csv(os.path.join(self.negative_sample_path,'Data_entry_2017_2020.csv'))
+            self.extra_img = extra_img['Image Index']
             print("negative_sample_path:", negative_sample_path, len(self.extra_img))
             print("check path:", self.extra_img[0])
         else:
             self.extra_img = None
-
+            
 
         print("load caption file done")
 
@@ -63,13 +65,13 @@ class MIMIC_CXRDataset(Dataset):
 
         #print(caption)
         # else:
-        if self.phase == 'train' and self.extra_img != None:
+        if self.phase == 'TRAIN' and self.extra_img[0] != None:
 
             for i in range(10):
-                idx = random.randint(0, self.__len__()-1)
+                idx = random.randint(0, len(self.extra_img)-1)
                 #neg_img_path = self.A_paths[idx % self.A_size]
-                neg_img_path = self.image_files[indx % self.__len__()]
-                img = load_img(neg_img_path)
+                neg_img_name = self.extra_img[idx % len(self.extra_img)]
+                img = load_img(os.path.join(self.negative_sample_path,neg_img_name))
                 image = np.array(image).astype(np.uint8)                
                 img = self.transform(image = img)['image']
                 if i == 0:
@@ -77,10 +79,10 @@ class MIMIC_CXRDataset(Dataset):
                 else:
                     img = np.expand_dims(img, axis=0)
                     neg_img = np.concatenate((neg_img, img), axis=0)
-            # print("check neg_img:", np.shape(neg_img))
+            #print("check neg_img:", np.shape(neg_img))
             data = {
-                    'image': np.transpose(A.astype(np.float32), (2, 0, 1)),
-                    'label': A_label,
+                    'image': np.transpose(image.astype(np.float32), (2, 0, 1)),
+                    'text': caption,
                     'negative_img': np.transpose(neg_img.astype(np.float32), (0, 3, 1, 2)),
                 }   
         else:
