@@ -36,7 +36,11 @@ model:
         contrastive_intra_loss_weight: 0 
         intra_mode: 'step'
         intra_neg_sample: 10
+<<<<<<< HEAD
         contrastive_inter_loss_weight: 5.0e-6 
+=======
+        contrastive_inter_loss_weight: 0
+>>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
         inter_mode: 'sample'
         inter_neg_sample: 10 
         adaptive_auxiliary_loss: True
@@ -79,10 +83,17 @@ model:
             pos_emb_type: embedding
 
 solver:
+<<<<<<< HEAD
   base_lr: 3.0e-6
   adjust_lr: none # not adjust lr according to total batch_size
   max_epochs: 400
   save_epochs: 30
+=======
+  base_lr: 5.0e-6
+  adjust_lr: none # not adjust lr according to total batch_size
+  max_epochs: 400
+  save_epochs: 15
+>>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
   validation_epochs: 400
   sample_iterations: epoch  # epoch #30000      # how many iterations to perform sampling once ?
   print_specific_things: True
@@ -111,7 +122,11 @@ solver:
       target: synthesis.engine.lr_scheduler.ReduceLROnPlateauWithWarmup
       params:
         factor: 0.5
+<<<<<<< HEAD
         patience: 25000
+=======
+        patience: 60000
+>>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
         min_lr: 1.0e-6
         threshold: 1.0e-1
         threshold_mode: rel
@@ -120,6 +135,7 @@ solver:
 
 dataloader:
   # data_root: data
+<<<<<<< HEAD
   data_root: /data/michel/data/
   batch_size: 6
   num_workers: 4
@@ -130,20 +146,43 @@ dataloader:
         image_files: 'train_val_list.txt'
         phase: train
         negative_sample_path:
+=======
+  data_root: '/home/michel/data'
+  batch_size: 6
+  num_workers: 4
+  train_datasets: # a list of configures, so we can combine several schedulers
+    - target: synthesis.data.chestxray8_dataset.ChestXray8Dataset
+      params:
+        data_root: '/home/michel/data/'
+        phase: train
+        image_files: './data/train_val_list.txt'
+        negative_sample_path: 
+>>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
         im_preprocessor_config:
           target: synthesis.data.utils.image_preprocessor.DalleTransformerPreprocessor   # ImageNet
           params:
             size: 256
             phase: train
   validation_datasets:
+<<<<<<< HEAD
     - target: synthesis.data.cub200_dataset.Cub200Dataset
       params:
         data_root: /data/michel/data/ # /mnt/blob/datasets/CUB-200
         image_files: 'test_list.txt' 
+=======
+    - target: synthesis.data.chestxray8_dataset.ChestXray8Dataset
+      params:
+        data_root: /home/michel/data/ # /mnt/blob/datasets/CUB-200
+        image_files: './data/test_list.txt'
+>>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
         phase: test
         negative_sample_path:
         im_preprocessor_config:
           target: synthesis.data.utils.image_preprocessor.DalleTransformerPreprocessor
           params:
             size: 256
+<<<<<<< HEAD
             phase: val
+=======
+            phase: val
+>>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f

@@ -1,7 +1,11 @@
 import torch
 import math
 # from torch.optim import AdamW, Adam
+<<<<<<< HEAD
 from torch import inf
+=======
+from numpy import inf
+>>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler, CosineAnnealingLR
 

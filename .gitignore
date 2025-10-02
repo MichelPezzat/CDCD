@@ -1,0 +1,7 @@
+OUTPUT/pretrained_model/ViT-B-32.pt
+OUTPUT/pretrained_model/taming_dvae/last.ckpt
+RESULT/
+home/
+synthesis/data/utils/__pycache__/
+running_command/run_train_chestxray8.py.save
+running_command/run_train_chestxray8.py.save.1

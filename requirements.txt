@@ -10,7 +10,6 @@ tensorboard
 pyyaml
 noisereduce
 omegaconf 
-pytorch-lightning
 timm==0.3.4
 lmdb 
 tqdm
