@@ -6,12 +6,16 @@ import torch
 import math
 from torch import nn
 from synthesis.utils.misc import instantiate_from_config
+from transformers import AutoTokenizer
 import time
 import numpy as np
 from PIL import Image
 import os
 
 from torch.cuda.amp import autocast
+
+url = "microsoft/BiomedVLP-BioViL-T"
+
 
 class DALLE(nn.Module):
     def __init__(
@@ -21,7 +25,6 @@ class DALLE(nn.Module):
         condition_info={'key': 'text'},
         negative_samples={'key': 'negative_img'},
         content_codec_config,
-        condition_codec_config,
         diffusion_config
     ):
         super().__init__()
@@ -29,8 +32,9 @@ class DALLE(nn.Module):
         self.condition_info = condition_info
         self.negative_info = negative_samples
         self.content_codec = instantiate_from_config(content_codec_config)
-        self.condition_codec = instantiate_from_config(condition_codec_config)
+        self.condition_codec = AutoTokenizer.from_pretrained(url, trust_remote_code=True)
         self.transformer = instantiate_from_config(diffusion_config)
+        self.condition_seq_len = self.transformer.transformer.condition_seq_len
         self.truncation_forward = False
 
     def parameters(self, recurse=True, name=None):
@@ -59,7 +63,9 @@ class DALLE(nn.Module):
         cond = batch[cond_key] if condition is None else condition
         if torch.is_tensor(cond):
             cond = cond.to(self.device)
-        cond = self.condition_codec.get_tokens(cond)
+        cond = self.condition_codec(
+            cond, max_length=self.condition_seq_len,
+            padding="max_length", truncation=True, return_tensors="pt")
         cond_ = {}
         for k, v in cond.items():
             v = v.to(self.device) if torch.is_tensor(v) else v
@@ -198,9 +204,9 @@ class DALLE(nn.Module):
             self.truncation_forward = True
 
         if len(sample_type.split(',')) == 2 and sample_type.split(',')[1][:4]=='fast':
-            trans_out = self.transformer.sample_fast(condition_token=condition['condition_token'],
-                                                condition_mask=condition.get('condition_mask', None),
-                                                condition_embed=condition.get('condition_embed_token', None),
+            trans_out = self.transformer.sample_fast(condition_token=condition['condition_input_ids'],
+                                                condition_mask=condition['condition_attention_mask'],
+                                                condition_embed=None,
                                                 content_token=content_token,
                                                 filter_ratio=filter_ratio,
                                                 temperature=temperature,
@@ -211,9 +217,9 @@ class DALLE(nn.Module):
                                                 skip_step=int(sample_type.split(',')[1][4:]))
 
         else:
-            trans_out = self.transformer.sample(condition_token=condition['condition_token'],
-                                            condition_mask=condition.get('condition_mask', None),
-                                            condition_embed=condition.get('condition_embed_token', None),
+            trans_out = self.transformer.sample(condition_token=condition['condition_input_ids'],
+                                            condition_mask=condition['condition_attention_mask'],
+                                            condition_embed= None,
                                             content_token=content_token,
                                             filter_ratio=filter_ratio,
                                             temperature=temperature,

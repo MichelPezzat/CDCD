@@ -25,6 +25,24 @@ def files_to_list(filename):
     return files
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+
+class ChestXray8Dataset(Dataset):
+    def __init__(self, data_root, image_files, negative_sample_path, phase = 'train', im_preprocessor_config=None):
+        self.transform = instantiate_from_config(im_preprocessor_config)
+        self.image_path = os.path.join(data_root, 'images')
+        self.image_index = files_to_list(image_files)
+        self.image_files = [os.path.join(self.image_path, x) for x in self.image_index]
+        #self.root = os.path.join(data_root, phase)
+        caption_file = os.path.join(data_root, "Data_Entry_2017_v2020.csv")
+        #self.name_list = pickle.load(open(pickle_path, 'rb'), encoding="bytes")
+        caption = pd.read_csv(caption_file)
+        self.names_list = caption['Image Index']
+        self.negative_sample_path = negative_sample_path
+        self.num = len(self.names_list)
+=======
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
 class ChestXray8Dataset(Dataset):
     def __init__(self, data_root, images_files,negative_sample_path, phase = 'train', im_preprocessor_config=None):
         self.transform = instantiate_from_config(im_preprocessor_config)
@@ -35,6 +53,7 @@ class ChestXray8Dataset(Dataset):
         data = pd.read_csv(data_path)
         self.negative_sample_path = negative_sample_path
         #self.num = len(self.name_list)
+<<<<<<< HEAD
 =======
 
 class ChestXray8Dataset(Dataset):
@@ -51,6 +70,9 @@ class ChestXray8Dataset(Dataset):
         self.negative_sample_path = negative_sample_path
         self.num = len(self.names_list)
 >>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
+=======
+>>>>>>> 5527de0ac126209a4aa701c4f4221bcff6c70ddf
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
         self.phase = phase
         if self.phase == 'train' and self.negative_sample_path != None:
             # print("negative_sample_path:", negative_sample_path)
@@ -64,15 +86,37 @@ class ChestXray8Dataset(Dataset):
 
         # load all caption file to dict in memory
 <<<<<<< HEAD
+<<<<<<< HEAD
         self.caption_dict =  data['Finding Labels']
 =======
         #self.caption_labels =  caption['Finding Labels']
 >>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
+=======
+        #self.caption_labels =  caption['Finding Labels']
+=======
+        self.caption_dict =  data['Finding Labels']
+>>>>>>> 5527de0ac126209a4aa701c4f4221bcff6c70ddf
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
 
 
         # print("check name_list:", len(self.name_list))
         # exit()
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+        caption_labels = {}
+        for index in tqdm(range(self.num)):
+             name = self.names_list[index]
+             if name in self.image_index:
+                caption_labels[index] = caption['Finding Labels'][index]
+        #    this_text_path = os.path.join(data_root, 'text', 'text', name+'.txt')
+        #    image_path = os.path.join(self.image_folder, name+'.jpg')
+        #     if not os.path.exists(image_path) or not os.path.exists(this_text_path):
+        #         print("missing file:", image_path, this_text_path)
+        self.caption_labels = list(caption_labels.values())
+        #print(len(self.image_files),len(self.caption_labels))
+=======
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
 
         # for index in tqdm(range(self.num)):
         #     name = self.name_list[index]
@@ -80,6 +124,7 @@ class ChestXray8Dataset(Dataset):
         #     image_path = os.path.join(self.image_folder, name+'.jpg')
         #     if not os.path.exists(image_path) or not os.path.exists(this_text_path):
         #         print("missing file:", image_path, this_text_path)
+<<<<<<< HEAD
 =======
         caption_labels = {}
         for index in tqdm(range(self.num)):
@@ -93,6 +138,9 @@ class ChestXray8Dataset(Dataset):
         self.caption_labels = list(caption_labels.values())
         #print(len(self.image_files),len(self.caption_labels))
 >>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
+=======
+>>>>>>> 5527de0ac126209a4aa701c4f4221bcff6c70ddf
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
 
 
 
@@ -102,6 +150,35 @@ class ChestXray8Dataset(Dataset):
 
     def __len__(self):
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+        return len(self.image_files)
+ 
+    def __getitem__(self, index):
+        #name = self.name_list[index]
+        #image_path = os.path.join(self.image_folder, name+'.jpg')
+        # if os.path.exists(image_path):
+        #     print(index, image_path)
+        #print(index)
+        image_path = self.image_files[index]
+        image = load_img(image_path)
+        #print(image_path)
+        image = np.array(image).astype(np.uint8)
+        image = self.transform(image = image)['image']
+        caption_list = self.caption_labels[index]
+        caption = caption_list.replace('|', ' ').lower()
+        #print(caption)
+        # else:
+        if self.phase == 'train' and self.extra_img != None:
+
+            for i in range(10):
+                idx = random.randint(0, self.__len__()-1)
+                #neg_img_path = self.A_paths[idx % self.A_size]
+                neg_img_path = self.image_files[indx % self.__len__()]
+                img = load_img(neg_img_path)
+                image = np.array(image).astype(np.uint8)                
+=======
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
         return self.num
  
     def __getitem__(self, index):
@@ -120,6 +197,7 @@ class ChestXray8Dataset(Dataset):
             for i in range(len(neg_sample)):
                 img = load_img(os.path.join(self.image_folder, neg_sample[i]))
                 img = np.array(img).astype(np.uint8)
+<<<<<<< HEAD
 =======
         return len(self.image_files)
  
@@ -147,12 +225,26 @@ class ChestXray8Dataset(Dataset):
                 img = load_img(neg_img_path)
                 image = np.array(image).astype(np.uint8)                
 >>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
+=======
+>>>>>>> 5527de0ac126209a4aa701c4f4221bcff6c70ddf
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
                 img = self.transform(image = img)['image']
                 if i == 0:
                     neg_img = np.expand_dims(img, axis=0)
                 else:
                     img = np.expand_dims(img, axis=0)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+                    neg_img = np.concatenate((neg_img, img), axis=0)
+            # print("check neg_img:", np.shape(neg_img))
+            data = {
+                    'image': np.transpose(A.astype(np.float32), (2, 0, 1)),
+                    'label': A_label,
+                    'negative_img': np.transpose(neg_img.astype(np.float32), (0, 3, 1, 2)),
+                }   
+=======
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
                     neg_img = np.concatenate((neg_img, img), axis=0) 
             # print("check data loader:", np.shape(image), np.shape(neg_img))
             data = {
@@ -160,6 +252,7 @@ class ChestXray8Dataset(Dataset):
                     'text': caption,
                     'negative_img': np.transpose(neg_img.astype(np.float32), (0, 3, 1, 2)),
                 }
+<<<<<<< HEAD
 =======
                     neg_img = np.concatenate((neg_img, img), axis=0)
             # print("check neg_img:", np.shape(neg_img))
@@ -169,6 +262,9 @@ class ChestXray8Dataset(Dataset):
                     'negative_img': np.transpose(neg_img.astype(np.float32), (0, 3, 1, 2)),
                 }   
 >>>>>>> 739735d6095bfcbc3ebf457b3ebddea38396e35f
+=======
+>>>>>>> 5527de0ac126209a4aa701c4f4221bcff6c70ddf
+>>>>>>> d74a0e337b8516c4db74d8e622966d39852e9476
         else:
             # neg_img = None
             data = {
