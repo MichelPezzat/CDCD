@@ -700,6 +700,7 @@ class DiffusionTransformer(nn.Module):
             print_log = True,
             **kwargs):
         input = {'condition_token': condition_token,
+                 'condition_edit_token': condition_edit_token,
                 'content_token': content_token, 
                 'condition_mask': condition_mask,
                 'condition_embed_token': condition_embed,
@@ -720,8 +721,12 @@ class DiffusionTransformer(nn.Module):
 
         if self.condition_emb is not None:  # do this
             with torch.no_grad():
-                cond_emb = self.condition_emb(input['condition_token']) # B x Ld x D   #256*1024
+                cond_emb = self.condition_emb(input['condition_token'], return_dict=False,
+                    attention_mask=input['condition_mask'])[0]
+                cedit_emb = self.condition_emb(input['condition_edit_token'], return_dict=False,
+                    attention_mask=input['condition_edit_mask'])[0]
             cond_emb = cond_emb.float()
+            cedit_emb = cedit_emb.float()
         else: # share condition embeding with content
             if input.get('condition_embed_token', None) != None:
                 cond_emb = input['condition_embed_token'].float()
@@ -752,7 +757,7 @@ class DiffusionTransformer(nn.Module):
             
             for diffusion_index in range(start_step-1, -1, -1):
                 t = torch.full((batch_size,), diffusion_index, device=device, dtype=torch.long)
-                model_log_prob = self.predict_start( y_t[diffusion_index], cond_edit, t)           
+                model_log_prob = self.predict_start( y_t[diffusion_index], cedit_emb, t)           
                 uniform = torch.rand_like(model_log_prob)
                 gumbel_noise = -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
                 log_z = gumbel_noise + self.q_posterior(
