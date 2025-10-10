@@ -13,6 +13,7 @@ import torch
 import cv2
 import argparse
 import numpy as np
+import pandas as pd
 import torchvision
 from PIL import Image
 import json
@@ -20,6 +21,17 @@ import json
 from synthesis.utils.io import load_yaml_config
 from synthesis.modeling.build import build_model
 from synthesis.utils.misc import get_model_parameters_info
+
+
+def files_to_list(filename):
+    """
+    Takes a text file of filenames and makes a list of filenames
+    """
+    with open(filename, encoding="utf-8") as f:
+        files = f.readlines()
+
+    files = [f.rstrip() for f in files]
+    return files
 
 class VQ_Diffusion():
     def __init__(self, config, path):
@@ -150,6 +162,8 @@ if __name__ == '__main__':
 
 
     #VQ_Diffusion = VQ_Diffusion(config='/data/zhuye/Text2Image/coco_train_cd_step_t80/configs/config.yaml', path='/data/zhuye/Text2Image/coco_train_cd_step_t80/checkpoint/last.pth')
+    data_root = "/home/michel/data/"
+
     #data_root = "/home/michel/data/"
     #caption_file = os.path.join(data_root,"Data_Entry_2017_v2020.csv")
     #"Data_Entry_2017_v2020.csv"
@@ -172,6 +186,7 @@ if __name__ == '__main__':
         caption_txt.write(cap)
         caption_txt.write('\n')
         VQ_Diffusion.inference_generate_sample_with_condition(cap,truncation_rate=0.85, save_root="/home/michel/data/Text2Image/mimicxr_train_cd_step_t80/syn_test",batch_size=1, count=count)
+
 
 print("total cap count:", count)
 caption_txt.close()

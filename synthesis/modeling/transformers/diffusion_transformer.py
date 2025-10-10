@@ -686,6 +686,90 @@ class DiffusionTransformer(nn.Module):
             output['logits'] = torch.exp(log_z)
         return output
 
+    def edit_sample(
+            self,
+            condition_token,
+            condition_mask,
+            condition_embed,
+            content_token = None,
+            filter_ratio = 0.5,
+            temperature = 1.0,
+            return_att_weight = False,
+            return_logits = False,
+            content_logits = None,
+            print_log = True,
+            **kwargs):
+        input = {'condition_token': condition_token,
+                 'condition_edit_token': condition_edit_token,
+                'content_token': content_token, 
+                'condition_mask': condition_mask,
+                'condition_embed_token': condition_embed,
+                'content_logits': content_logits,
+                }
+
+        if input['condition_token'] != None:
+            batch_size = input['condition_token'].shape[0]
+        else:
+            batch_size = kwargs['batch_size']
+    
+        device = self.log_at.device
+        start_step = int(self.num_timesteps * filter_ratio)
+
+        # get cont_emb and cond_emb
+        if content_token != None:
+            sample_image = input['content_token'].type_as(input['content_token'])
+
+        if self.condition_emb is not None:  # do this
+            with torch.no_grad():
+                cond_emb = self.condition_emb(input['condition_token'], return_dict=False,
+                    attention_mask=input['condition_mask'])[0]
+                cedit_emb = self.condition_emb(input['condition_edit_token'], return_dict=False,
+                    attention_mask=input['condition_edit_mask'])[0]
+            cond_emb = cond_emb.float()
+            cedit_emb = cedit_emb.float()
+        else: # share condition embeding with content
+            if input.get('condition_embed_token', None) != None:
+                cond_emb = input['condition_embed_token'].float()
+            else:
+                cond_emb = None
+        
+        y_t = []
+        z_t = []
+        
+        start_step = self.num_timesteps 
+        log_x_start = index_to_log_onehot(sample_image, self.num_classes)
+        for diffusion_index in range(0, 1, start_step):
+            t = torch.full((batch_size,), diffusion_index, device=device, dtype=torch.long)
+            x_t = self.q_sample(log_x_start=log_x_start, t=t)
+            y_t[diffusion_index] = index_to_log_onehot(x_t, self.num_classes)
+       
+
+        zero_logits = torch.zeros((batch_size, self.num_classes-1, self.shape),device=device)
+        one_logits = torch.ones((batch_size, 1, self.shape),device=device)
+        mask_logits = torch.cat((zero_logits, one_logits), dim=1)
+        log_z = y_tile = torch.log(mask_logits)
+                  
+        with torch.no_grad():
+            for diffusion_index in range(start_step-1, -1, -1):
+                t = torch.full((batch_size,), diffusion_index, device=device, dtype=torch.long)
+                y_tile = self.p_pred( y_tile, cond_emb, t)     # log_z is log_onehot
+                z_t[diffusion_index] = y_t[diffusion_index] - y_tile     
+            
+            for diffusion_index in range(start_step-1, -1, -1):
+                t = torch.full((batch_size,), diffusion_index, device=device, dtype=torch.long)
+                model_log_prob = self.predict_start( y_t[diffusion_index], cedit_emb, t)           
+                uniform = torch.rand_like(model_log_prob)
+                gumbel_noise = -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
+                log_z = gumbel_noise + self.q_posterior(
+                log_x_start=model_log_prob, log_x_t=log_z, t=t) + 
+                lambda_1*z_t[diffusion_index]
+        content_token = log_onehot_to_index(log_z)
+        
+        output = {'content_token': content_token}
+        if return_logits:
+            output['logits'] = torch.exp(log_z)
+        return output
+
 
 
     def sample_fast(

@@ -215,7 +215,21 @@ class DALLE(nn.Module):
                                                 print_log=False,
                                                 sample_type=sample_type,
                                                 skip_step=int(sample_type.split(',')[1][4:]))
-
+        elif len(sample_type.split(',')) == 2 and sample_type.split(',')[1][:4]=='edit':
+            condition_edit = self.prepare_condition(batch=None, condition=batch['edit_text'])
+            trans_out = self.transformer.edit_sample(condition_token=condition['condition_input_ids'],
+                                                condition_mask=condition['condition_attention_mask'],
+                                                condition_edit_token=condition_edit['condition_input_ids']
+                                                condition_edit_mask=condition_edit['condition_attention_mask'],
+                                                condition_embed=None,
+                                                content_token=content_token,
+                                                filter_ratio=filter_ratio,
+                                                temperature=temperature,
+                                                return_att_weight=return_att_weight,
+                                                return_logits=False,
+                                                print_log=False,
+                                                sample_type=sample_type,
+                                                skip_step=int(sample_type.split(',')[1][4:]))              
         else:
             trans_out = self.transformer.sample(condition_token=condition['condition_input_ids'],
                                             condition_mask=condition['condition_attention_mask'],
