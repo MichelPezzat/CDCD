@@ -204,7 +204,7 @@ if __name__ == '__main__':
 
 
         for id, output in zip(ALL_ID, outputs):
-            filename = "SyntheticImg_{}.png".format(id)
+            filename = "SyntheticImg2_{}.png".format(id)
             savepath = os.path.join( save_root, filename)
             image = Image.fromarray(output)
             image.save(savepath)
