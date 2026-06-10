@@ -182,6 +182,7 @@ class DALLE(nn.Module):
         replicate=1,
         return_att_weight=False,
         sample_type="top0.85r",
+        mask_token=None,
     ):
         self.eval()
         if condition is None:
@@ -194,7 +195,10 @@ class DALLE(nn.Module):
                 if condition[k] is not None:
                     condition[k] = torch.cat([condition[k] for _ in range(replicate)], dim=0)
             
-        content_token = None
+        if content_ratio > 0:
+            content_token = self.prepare_content(batch)
+        else:
+            content_token = None
 
         if len(sample_type.split(',')) > 1:
             if sample_type.split(',')[1][:1]=='q':
@@ -217,19 +221,21 @@ class DALLE(nn.Module):
                                                 skip_step=int(sample_type.split(',')[1][4:]))
         elif len(sample_type.split(',')) == 2 and sample_type.split(',')[1][:4]=='edit':
             condition_edit = self.prepare_condition(batch=None, condition=batch['edit_text'])
+            uncond_edit = self.prepare_condition(batch=None, condition= "")
             trans_out = self.transformer.edit_sample(condition_token=condition['condition_input_ids'],
                                                 condition_mask=condition['condition_attention_mask'],
-                                                condition_edit_token=condition_edit['condition_input_ids']
+                                                condition_edit_token=condition_edit['condition_input_ids'],
                                                 condition_edit_mask=condition_edit['condition_attention_mask'],
+                                                uncond_edit=uncond_edit,
                                                 condition_embed=None,
-                                                content_token=content_token,
+                                                content_token=content_token['content_token'],
                                                 filter_ratio=filter_ratio,
                                                 temperature=temperature,
                                                 return_att_weight=return_att_weight,
                                                 return_logits=False,
                                                 print_log=False,
                                                 sample_type=sample_type,
-                                                skip_step=int(sample_type.split(',')[1][4:]))              
+                                                mask_token=mask_token)              
         else:
             trans_out = self.transformer.sample(condition_token=condition['condition_input_ids'],
                                             condition_mask=condition['condition_attention_mask'],
@@ -284,7 +290,7 @@ class DALLE(nn.Module):
         self.eval()
         condition = self.prepare_condition(batch)
         content = self.prepare_content(batch)
-
+        
         content_samples = {'input_image': batch[self.content_info['key']]}
         if return_rec:
             content_samples['reconstruction_image'] = self.content_codec.decode(content['content_token'])  

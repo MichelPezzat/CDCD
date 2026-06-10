@@ -106,14 +106,10 @@ def alpha_schedule(time_step, N=100, att_1 = 0.99999, att_T = 0.000009, ctt_1 = 
     ctt = np.concatenate((ctt[1:], [0]))
     btt = (1-att-ctt)/N
     return at, bt, ct, att, btt, ctt
-
 def mask_logits(batch_size, num_classes, shape, device):
     zero_logits = torch.zeros((batch_size, num_classes-1, shape),device=device)
     one_logits = torch.ones((batch_size, 1, shape),device=device)
     return torch.cat((zero_logits, one_logits), dim=1)
-
-
- 
 class DiffusionTransformer(nn.Module):
     def __init__(
         self,
@@ -242,16 +238,13 @@ class DiffusionTransformer(nn.Module):
 
         return log_probs
 
-    def predict_start(self, log_x_t, cond_emb, t, uncond_emb = None):          # p(x0|xt)
+    def predict_start(self, log_x_t, cond_emb, t):          # p(x0|xt)
         x_t = log_onehot_to_index(log_x_t)
         if self.amp == True:
             with autocast():
                 out = self.transformer(x_t, cond_emb, t)
         else:
             out = self.transformer(x_t, cond_emb, t)
-        if uncond_emb!= None:
-            uncond_out = self.transformer(x_t, uncond_emb, t)
-            out = uncond_out + 10.0*(out - uncond_out) 
 
         assert out.size(0) == x_t.size(0)
         assert out.size(1) == self.num_classes-1
@@ -329,10 +322,6 @@ class DiffusionTransformer(nn.Module):
         log_sample = self.log_sample_categorical(log_EV_qxt_x0)
 
         return log_sample
-
-    def inpaint_logit(self, sample, sample_tile ,mask):
-        inpaint_pred = (1-mask)*sample + mask*sample_tile
-        return index_to_log_onehot(inpaint_pred, self.num_classes)
 
     def sample_time(self, b, device, method='uniform'):
         if method == 'importance':
@@ -707,7 +696,6 @@ class DiffusionTransformer(nn.Module):
             condition_edit_token,
             condition_edit_mask,
             condition_embed,
-            uncond_edit,
             content_token = None,
             filter_ratio = 0.5,
             temperature = 1.0,
@@ -716,9 +704,7 @@ class DiffusionTransformer(nn.Module):
             content_logits = None,
             lambda_1 = 0.1,
             lambda_2 = 0.9,
-            cfg_scale = 15.0,
             print_log = True,
-            mask_token=None,
             **kwargs):
         input = {'condition_token': condition_token,
                  'condition_edit_token': condition_edit_token,
@@ -735,18 +721,11 @@ class DiffusionTransformer(nn.Module):
             batch_size = kwargs['batch_size']
     
         device = self.log_at.device
-        #start_step = int(self.num_timesteps * filter_ratio)
-        
-        mask_token = rearrange(mask_token.squeeze(0) , 'b h w -> b (h w)')
-        filter_radio = (mask_token>0).sum().item()/mask_token.size()[1]
-        mask_token = (mask_token>0).expand(batch_size, -1).long().cuda()
+        start_step = int(self.num_timesteps * filter_ratio)
 
         # get cont_emb and cond_emb
         if content_token != None:
             sample_image = input['content_token'].type_as(input['content_token'])
-
-
-        #sample_image = sample_image*(1-mask_token) + mask_token*2887
 
         if self.condition_emb is not None:  # do this
             with torch.no_grad():
@@ -754,8 +733,6 @@ class DiffusionTransformer(nn.Module):
                     attention_mask=input['condition_mask'])[0]
                 cedit_emb = self.condition_emb(input['condition_edit_token'], return_dict=False,
                     attention_mask=input['condition_edit_mask'])[0]
-                uncond_emb = self.condition_emb(uncond_edit['condition_input_ids'], return_dict=False,
-                    attention_mask=uncond_edit['condition_attention_mask'])[0].float()
             cond_emb = cond_emb.float()
             cedit_emb = cedit_emb.float()
         else: # share condition embeding with content
@@ -765,18 +742,14 @@ class DiffusionTransformer(nn.Module):
                 cond_emb = None
         
 
-        start_step = 60
-        #start_step = int(self.num_timesteps * filter_ratio) + 3
-        #start_step = min(start_step, self.num_timesteps-1)
-
-
- 
-        y_t = torch.zeros((start_step, batch_size, self.num_classes, self.shape),device=device)
-        z_t = torch.zeros((start_step, batch_size, self.num_classes, self.shape),device=device)
+        
+        start_step = self.num_timesteps 
+        y_t = torch.zeros((edit_step, batch_size, self.num_classes, self.shape),device=device)
+        z_t = torch.zeros((edit_step, batch_size, self.num_classes, self.shape),device=device)
 
 
         log_x_start = index_to_log_onehot(sample_image, self.num_classes)
-        for diffusion_index in range(start_step):
+        for diffusion_index in range(0, 1, start_step):
             t = torch.full((batch_size,), diffusion_index, device=device, dtype=torch.long)
             y_t[diffusion_index] = self.q_sample(log_x_start=log_x_start, t=t)
             
@@ -790,20 +763,15 @@ class DiffusionTransformer(nn.Module):
                 y_tile = self.p_pred( y_tile, cond_emb, t)     # log_z is log_onehot
                 z_t[diffusion_index] = y_t[diffusion_index-1] - y_tile  
         #edit_step = 20
-        log_z = y_t[start_step-1]
+        log_z = y_t[0].type_as(y_t[0]) 
         with torch.no_grad():
             for diffusion_index in range(start_step-1, -1, -1):
                 t = torch.full((batch_size,), diffusion_index, device=device, dtype=torch.long)
-                model_log_prob = self.predict_start( log_z, cedit_emb, t)
-                #uncond_log_prob = self.predict_start( log_z, uncond_emb, t)
-                #model_log_prob = uncond_log_prob + cfg_scale * (cond_log_prob - uncond_log_prob)           
+                model_log_prob = self.predict_start( log_z, cedit_emb, t)           
                 uniform = torch.rand_like(model_log_prob)
                 gumbel_noise = -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
                 log_z = lambda_2*gumbel_noise + self.q_posterior(
-                log_x_start=model_log_prob, log_x_t=log_z, t=t) + lambda_1*z_t[diffusion_index] 
-                #sample = logit.argmax(dim=1)
-                #sample_tile = z_t[diffusion_index].argmax(1)
-                #log_z =  self.inpaint_logit(sample, sample_tile, mask_token)
+                log_x_start=model_log_prob, log_x_t=log_z, t=t) + lambda_1*z_t[diffusion_index]
         content_token = log_onehot_to_index(log_z)
         
         output = {'content_token': content_token}

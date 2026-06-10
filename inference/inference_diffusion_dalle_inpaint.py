@@ -9,21 +9,25 @@ import random
 import time
 import argparse
 import numpy as np
+import pandas as pd
+
 import warnings
 import torchvision
 import glob
-from PIL import Image
+from PIL import Image, ImageOps
 from collections import OrderedDict, defaultdict
 from torch.utils.data import ConcatDataset
+from datasets import load_dataset
+import torchvision.transforms as transforms
 
-from image_synthesis.utils.io import load_yaml_config
-from image_synthesis.utils.misc import instantiate_from_config
-from image_synthesis.utils.cal_metrics import get_PSNR, get_mse_loss, get_l1_loss, get_SSIM
-from image_synthesis.modeling.build import build_model
-from image_synthesis.utils.misc import format_seconds
-from image_synthesis.distributed.launch import launch
-from image_synthesis.distributed.distributed import reduce_dict, synchronize, all_gather
-from image_synthesis.utils.misc import get_model_parameters_info, get_model_buffer
+from synthesis.utils.io import load_yaml_config
+from synthesis.utils.misc import instantiate_from_config
+#from synthesis.utils.cal_metrics import get_PSNR, get_mse_loss, get_l1_loss, get_SSIM
+from synthesis.modeling.build import build_model
+from synthesis.utils.misc import format_seconds
+from synthesis.distributed.launch import launch
+from synthesis.distributed.distributed import reduce_dict, synchronize, all_gather
+from synthesis.utils.misc import get_model_parameters_info, get_model_buffer
 
 def image_post_process(image):
     def convert(t):
@@ -42,6 +46,16 @@ def image_post_process(image):
         raise ValueError
 
     return image
+
+def image_pre_process(image, data = None):
+    #image_tensor = np.array(image).astype(np.uint8)
+    image_tensor = data.transform(image = image)['image']
+    #print(image_tensor.shape)
+    #image_tensor = np.transpose(image_tensor, (2,0,1)) if len(image_tensor.shape)==3 else image_tensor
+    image_tensor = transforms.ToTensor()(image_tensor) 
+    #image_tensor = image_tensor*255
+    #print(image_tensor.shape)
+    return image_tensor
 
 def save_list_results(images, save_root, batch_idx, local_rank=0):
     '''
@@ -281,21 +295,13 @@ def inference_generate_sample_with_condition(local_rank=0, args=None):
         param.requires_grad=False
     #####################################################
 
-    # filep = open(args.txt_file, 'r')
-    text_list = []
-    while True:
-         line = filep.readline()
-         if line == '':
-             break
-         line = line.replace('\n', '')
-         text_list.append(line)
+    full_data = load_dataset("raman07/SynthCheX-75K", trust_remote_code=True)
+    full_data = [full_data['train'][i] for i in range(len(full_data['train'])) if full_data['train'][i]['labels_dict']['No Finding']==1] 
+    full_data = full_data[10000:10700]
 
-    text_list.append(args.caption)
-
-    print('images:', len(text_list))
     
     # count_cond = 100 // (args.world_size if args is not None else 1)
-    count_cond = 100                                  # how many text
+    count_cond = 800                                  # how many text
     # count_per_cond = 
     return_att_weight = False # True #False
     filter_ratio = [0.0] #[0.3, 0.5, 50, 100]
@@ -332,13 +338,17 @@ def inference_generate_sample_with_condition(local_rank=0, args=None):
     #this_out_path = args.image_path.replace('.jpg', '_mask.jpg')
     #out_image.save(this_out_path)
 
-    #import torch.nn.functional as F
+    import torch.nn.functional as F
     #mask_token = F.interpolate(mask_tensor.unsqueeze(0), size=[32,32])
-    import torchvision.transforms as transforms
+    
 
     start_gen = time.time()
-    count_cond = min(count_cond, len(text_list))
-    for i, text in enumerate(text_list):
+    count_cond = min(count_cond, len(full_data))
+    labels_dict_edited = []
+    labels_dict_org = []
+    paths_org = []
+    paths_edited = []
+    for i in range(len(full_data)):
     # for i, data_i in enumerate(dataloader):
         if i >= count_cond:
             break
@@ -346,18 +356,44 @@ def inference_generate_sample_with_condition(local_rank=0, args=None):
             print("number of count is {}/{} -------".format(i, count_cond))
 
         condition_info = model.condition_info if not isinstance(model, torch.nn.parallel.DistributedDataParallel) else model.module.condition_info
-        temp_image_path = os.path.join(args.image_path, "SyntheticImg_{}.png".format(i))
-        temp_image = Image.open(temp_image_path).convert('RGB')
+        current_image_data = full_data[i]
         
-        image_tensor0 = transforms.ToTensor()(temp_image).unsqueeze(0)
+        #temp_image = Image.open(temp_image_path).convert('RGB')
+        orig_img = current_image_data['image']
+        image_tensor0 = image_pre_process(orig_img, data = data).unsqueeze(0)
         image_tensor = image_tensor0*255
 
+        label_dict = current_image_data['labels_dict']
+        labels_dict_org.append(label_dict)
+        label_dict['No Finding'] = 1
+        labels_dict_edited.append(label_dict)
 
+
+        text =  'No acute cardiopulmonary process. Unremarkable chest radiographic examination' # default empty string
+     
         data_i = {}
         data_i['text'] = [text]
         data_i['image'] = image_tensor
-        data_i['edit_text'] = text_list[-1]
+        data_i['edit_text'] = 'Left pectoral pacemarker in place. The position of the leads is as expected. Otherwise unremarkable chest radiographic examination' 
         condition = text
+
+        mask_path = os.path.join( args.mask_paths, 'img_'+f"{i:03d}"+'_mask.png') 
+        mask_image = Image.open(mask_path).convert('L')
+        #mask_image = ImageOps.invert(mask_image)
+        mask_tensor = image_pre_process(mask_image, data = data)
+        #print(mask_tensor.size())
+        assert mask_tensor.size()[0] == 1
+        assert mask_tensor.size()[1] == 256
+        assert mask_tensor.size()[2] == 256
+
+
+        
+        mask = (mask_tensor>0).unsqueeze(0).expand(-1,3,-1,-1).float()
+        out_tensor = image_tensor0*(1-mask)+mask*0.35
+        out_image = transforms.ToPILImage()(out_tensor.squeeze(0))
+
+
+        mask_token = F.interpolate(mask_tensor.unsqueeze(0), size=[32,32])        
 
         # condition = 'a cartoon illustration of a yellow devil'
         # # condition = 'bride at the vector art illustration'
@@ -384,8 +420,8 @@ def inference_generate_sample_with_condition(local_rank=0, args=None):
             fc.close()
 
         # generate samples in a batch manner
-        count_per_cond_ = len(glob.glob(os.path.join(save_root_, 'rank_*_*_fr*_cr*.png')))
-        while count_per_cond_ < count_per_cond:
+        count_per_cond_ = 0
+        if count_per_cond_ < count_per_cond:
             assert len(content_ratio) == 1
             cr = content_ratio[0]
             for fr in filter_ratio:
@@ -398,6 +434,7 @@ def inference_generate_sample_with_condition(local_rank=0, args=None):
                         content_ratio=cr,
                         return_att_weight=return_att_weight,
                         sample_type=args.sample_type,
+                        mask_token=mask_token,
                     ) # B x C x H x W
                     # model_out = model.sample(data_i, return_rec=False, filter_ratio=fr_, content_ratio=cr_)
 
@@ -407,11 +444,20 @@ def inference_generate_sample_with_condition(local_rank=0, args=None):
                 content = content.permute(0, 2, 3, 1).to('cpu').numpy().astype(np.uint8)
                 for b in range(content.shape[0]):
                     cnt = count_per_cond_ + b
+
+
                 
                     save_base_name = 'rank_{}_{}_fr{}_cr{}'.format(local_rank, str(cnt).zfill(6), fr, cr)
-                    save_path = os.path.join(save_root_, save_base_name+'.png')
+                    save_path = os.path.join(save_root_, save_base_name+str(i)+'edit.png')
                     im = Image.fromarray(content[b])
                     im.save(save_path)
+
+                    save_path_org = os.path.join(save_root_,save_base_name+str(i)+'orig.jpg')
+                    orig_img.save(save_path_org)
+
+
+                    paths_org.append(save_path_org)
+                    paths_edited.append(save_path)
                     print('Rank {}, Total time {}, batch time {:.2f}s, saved in {}'.format(local_rank, format_seconds(time.time()-start_gen), time.time()-start_batch, save_path))
 
                     return_att_weight = False
@@ -440,8 +486,21 @@ def inference_generate_sample_with_condition(local_rank=0, args=None):
                         cont_att_f.close()     
             
                 print('==> batch time {}s'.format(round(time.time() - start_batch, 1)))
+    
                 count_per_cond_ = len(glob.glob(os.path.join(save_root_, 'rank_*_*_fr*_cr*.png')))
+    origin_images_info = {}
+    origin_images_info['paths']=paths_org
+    origin_images_info['chexpert_labels']=labels_dict_org
+    
+    edited_images_info = {}
+    edited_images_info['paths']=paths_edited
+    edited_images_info['chexpert_labels']=labels_dict_edited
+    
+    df = pd.DataFrame(origin_images_info)
+    df.to_csv('origin_images_dice_PM_nm.csv', index=False)
 
+    df = pd.DataFrame(edited_images_info)
+    df.to_csv('edited_images_dice_PM_nm.csv', index=False)    
 
 def get_args():
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
@@ -449,7 +508,7 @@ def get_args():
     parser.add_argument('--save_dir', type=str, default='RESULT_inpaint', 
                         help='directory to save results') 
 
-    parser.add_argument('--name', type=str, default='/home/michel/data/Text2Image/mimicxr_train/', 
+    parser.add_argument('--name', type=str, default='/home/michel/data/Text2Image/mimicxr_train_100/', 
                         help='the name of this experiment, if not provided, set to'
                              'the name of config file') 
     parser.add_argument('--func', type=str, default='inference_generate_sample_with_condition', 
@@ -461,10 +520,10 @@ def get_args():
                         help='node rank for distributed training')
     parser.add_argument('--dist_url', type=str, default='auto', 
                         help='url used to set up distributed training')
-    parser.add_argument('--gpu', type=int, default=None,
+    parser.add_argument('--gpu', type=int, default=0,
                         help='GPU id to use. If given, only the specific gpu will be'
                         ' used, and ddp will be disabled')
-    parser.add_argument('--batch_size', type=int, default=4,  
+    parser.add_argument('--batch_size', type=int, default=1,  
                         help='batch size while inference')         # by default is 8
     parser.add_argument('--data_type', type=str, default='val',
                         choices=['val', 'train'],
@@ -476,10 +535,10 @@ def get_args():
 
     parser.add_argument('--debug', action='store_true', # default=True,
                         help='set as debug mode')
-    parser.add_argument('--sample_type', type=str, default='normal', help='normal|top1|top3|...|debug')
+    parser.add_argument('--sample_type', type=str, default='top0.85r,edit', help='normal|top1|top3|...|debug')
     parser.add_argument('--txt_file', type=str, default="mimicxr_input_caption_inf.txt", help='txt file')
     parser.add_argument('--image_path', type=str, default="/home/michel/data/Text2Image/mimicxr_train_cd_step_t80/syn_test", help='input_image')
-    #parser.add_argument('--mask_path', type=str, default='inpainting/input_images/mask0.jpg', help='input_mask')
+    parser.add_argument('--mask_paths', type=str, default='/home/michel/data/Masks/only_sane', help='input_mask')
     parser.add_argument('--caption', type=str, default='No acute cardiopulmonary process', help='input_mask')
 
     args = parser.parse_args()

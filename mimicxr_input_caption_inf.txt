@@ -1,6 +1,8 @@
-small right-sided pleural effusion
-no acute cardiopulmonary process
-small left-sided pleural effusion
-large right-sided pleural effusion
-bilateral pleural effusions
-large left-sided pleural effusion
+pleural effusion
+pleural effusion
+pleural effusion
+pleural effusion
+pleural effusion
+pleural effusion
+
+

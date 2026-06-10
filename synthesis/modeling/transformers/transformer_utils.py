@@ -423,6 +423,7 @@ class Text2ImageTransformer(nn.Module):
             input, 
             cond_emb,
             t):
+        #print(input.shape)
         cont_emb = self.content_emb(input)
         emb = cont_emb
 

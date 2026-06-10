@@ -119,7 +119,7 @@ class VQ_Diffusion():
                 batch=data_i,
                 filter_ratio=0,
                 replicate=batch_size,
-                content_ratio=1,
+                content_ratio=0,
                 return_att_weight=False,
                 sample_type="top"+str(truncation_rate)+add_string,
             ) # B x C x H x W
@@ -164,7 +164,7 @@ class DummyDataset(Dataset):
 
 
 if __name__ == '__main__':
-    VQ_Diffusion = VQ_Diffusion(config="/home/michel/data/Text2Image/mimicxr_train/configs/config.yaml", path="/home/michel/data/Text2Image/mimicxr_train/checkpoint/last.pth")
+    VQ_Diffusion = VQ_Diffusion(config="/home/michel/data/Text2Image/mimicxr_train_100/configs/config.yaml", path="/home/michel/data/Text2Image/mimicxr_train_100/checkpoint/last.pth")
     #VQ_Diffusion.inference_generate_sample_with_condition("no findings",truncation_rate=0.86, save_root="RESULT",batch_size=2,count=2)  # fast is a int from 2 to 10
     #VQ_Diffusion.inference_generate_sample_with_condition("a beautiful smiling woman",truncation_rate=0.85, save_root="RESULT",batch_size=8)
 
@@ -174,9 +174,9 @@ if __name__ == '__main__':
 
     #print(f"Loading CSV: {LLAVARAD_ANNOTATIONS_TEST.csv}")
     captions = [
-    "Small right-sided pleural effusion",
+    "right-lung consolidation",
     "No acute cardiopulmonary process",
-    "Small left-sided pleural effusion",
+    "left-lung consolidation",
     "Large right-sided pleural effusion",
     "Bilateral pleural effusions",
     "Large left-sided pleural effusion",]
@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
         
   
-    save_root = "/home/michel/data/Text2Image/mimicxr_train_cd_step_t80/syn_test"
+    save_root = "/home/michel/data/Text2Image/mimicxr_train_cd_step_t100/syn_test"
     SYNTHETIC_PATHS = []
     #count = 0
 

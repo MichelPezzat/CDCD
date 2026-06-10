@@ -56,8 +56,9 @@ class MIMIC_CXRDataset(Dataset):
         
         
         image = np.array(image).astype(np.uint8)
+        #print(image.shape)
         image = self.transform(image = image)['image']
-
+        #print(image.shape)
         
         caption_list = self.annotations['conversations'][index].split(':')[-1][2:-4].split('.')
 
